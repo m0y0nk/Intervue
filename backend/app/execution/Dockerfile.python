@@ -1,0 +1,14 @@
+FROM python:3.12-slim
+
+# Create unprivileged user
+RUN groupadd -g 1000 sandbox && useradd -u 1000 -g sandbox -m -s /bin/bash sandbox
+
+WORKDIR /sandbox
+
+# Copy harness
+COPY python_harness.py /sandbox/harness.py
+RUN chown -R sandbox:sandbox /sandbox && chmod 555 /sandbox/harness.py
+
+USER sandbox
+
+ENTRYPOINT ["python3", "/sandbox/harness.py"]
