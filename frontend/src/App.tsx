@@ -149,7 +149,6 @@ export function App() {
   // Save code
   const handleCodeChange = useCallback(async (code: string) => {
     if (!sessionId) return;
-    setSession((prev) => (prev ? { ...prev, code } : null));
     await api.updateCode(sessionId, code);
   }, [sessionId]);
 

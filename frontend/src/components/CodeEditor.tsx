@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { python } from "@codemirror/lang-python";
-import { Play, CheckCircle2, XCircle, AlertCircle, Loader2 } from "lucide-react";
+import { Play, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { RunCodeResponse, TestResultItem } from "../types";
 
 interface CodeEditorProps {
   initialCode: string;
-  onCodeChange: (code: string) => void;
+  onCodeChange: (code: string) => Promise<void> | void;
   onRunCode: () => Promise<RunCodeResponse>;
   isRunning: boolean;
   rateLimitSecondsLeft: number;
@@ -20,19 +20,50 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   rateLimitSecondsLeft,
 }) => {
   const [code, setCode] = useState<string>(initialCode);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [lastSavedCode, setLastSavedCode] = useState<string>(initialCode);
   const [runResults, setRunResults] = useState<RunCodeResponse | null>(null);
   const [activeTab, setActiveTab] = useState<"editor" | "results">("editor");
 
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     setCode(initialCode);
+    setLastSavedCode(initialCode);
   }, [initialCode]);
 
   const handleChange = (val: string) => {
     setCode(val);
-    onCodeChange(val);
+
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    setIsSaving(true);
+
+    // Debounce autosave: 1.5 seconds after candidate stops typing
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        await onCodeChange(val);
+        setLastSavedCode(val);
+      } finally {
+        setIsSaving(false);
+      }
+    }, 1500);
   };
 
   const handleRun = async () => {
+    // Flush any pending save immediately before running
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+      if (code !== lastSavedCode) {
+        await onCodeChange(code);
+        setLastSavedCode(code);
+        setIsSaving(false);
+      }
+    }
+
     try {
       const res = await onRunCode();
       setRunResults(res);
@@ -49,6 +80,14 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       setActiveTab("results");
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div className="flex flex-col h-full bg-[#0d0d10] border border-[#27272a] rounded-lg overflow-hidden">
@@ -84,8 +123,19 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
           </button>
         </div>
 
-        {/* Run Button */}
-        <div className="flex items-center space-x-2">
+        {/* Right side: Save indicator & Run Button */}
+        <div className="flex items-center space-x-3">
+          <div className="w-16 text-right text-[11px] font-mono select-none flex items-center justify-end">
+            {isSaving ? (
+              <span className="flex items-center text-amber-400/90">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 mr-1.5 animate-pulse" />
+                Saving
+              </span>
+            ) : (
+              <span className="text-zinc-500">Saved</span>
+            )}
+          </div>
+
           {rateLimitSecondsLeft > 0 && (
             <span className="text-[11px] text-zinc-500 font-mono">
               Wait {rateLimitSecondsLeft.toFixed(1)}s
