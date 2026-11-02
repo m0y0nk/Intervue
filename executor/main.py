@@ -71,14 +71,24 @@ def truncate(text: str, max_bytes: int = MAX_OUTPUT_BYTES) -> str:
 
 @app.post("/execute", response_model=ExecutionResponse)
 def execute_code(req: ExecutionRequest) -> ExecutionResponse:
-    if req.language.lower() != "python":
+    lang = req.language.lower()
+    if lang == "python":
+        image_name = "intervue-runner-python:latest"
+        tmpfs_opts = "rw,noexec,nosuid,size=64m"
+    elif lang == "java":
+        image_name = "intervue-runner-java:latest"
+        tmpfs_opts = "rw,exec,nosuid,size=64m"
+    elif lang in ("cpp", "c++"):
+        image_name = "intervue-runner-cpp:latest"
+        tmpfs_opts = "rw,exec,nosuid,size=64m"
+    else:
         raise HTTPException(
             status_code=400,
-            detail=f"Language '{req.language}' not supported in Phase 1 (Python only)",
+            detail=f"Language '{req.language}' not supported. Supported: python, java, cpp",
         )
 
-    image_name = "intervue-runner-python:latest"
-    timeout = min(req.timeout_seconds or DEFAULT_TIMEOUT, MAX_RUN_TIMEOUT)
+    default_timeout = 10.0 if lang in ("java", "cpp", "c++") else DEFAULT_TIMEOUT
+    timeout = min(req.timeout_seconds or default_timeout, MAX_RUN_TIMEOUT)
 
     payload_dict = {
         "code": req.code,
@@ -99,7 +109,7 @@ def execute_code(req: ExecutionRequest) -> ExecutionResponse:
         "--name", container_name,
         "--network", "none",
         "--read-only",
-        "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m",
+        "--tmpfs", f"/tmp:{tmpfs_opts}",
         "--cap-drop", "ALL",
         "--security-opt", "no-new-privileges",
         "--user", "1000:1000",

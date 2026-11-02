@@ -35,13 +35,14 @@ def test_import_boundary_interviewer_service():
     )
 
 
-@pytest.mark.asyncio
-async def test_zero_llm_calls_in_coding_stage():
+def test_zero_llm_calls_in_coding_stage():
     """
     CRITICAL RULE:
     Stage 6 (Coding) must trigger zero LLM calls.
     interviewer_service.get_response must raise an error if stage >= 6.
     """
+    import asyncio
+
     problem = ProblemPublic(
         id="p1",
         title="Test Problem",
@@ -50,12 +51,14 @@ async def test_zero_llm_calls_in_coding_stage():
         signature={"function_name": "solve", "args": [], "return_type": "int"},
     )
     with pytest.raises(ValueError, match="Zero LLM calls permitted in Coding stage"):
-        await interviewer_service.get_response(
-            problem=problem,
-            stage=6,
-            style_name="general",
-            candidate_message="Can you help me?",
-            candidate_notes="",
+        asyncio.run(
+            interviewer_service.get_response(
+                problem=problem,
+                stage=6,
+                style_name="general",
+                candidate_message="Can you help me?",
+                candidate_notes="",
+            )
         )
 
 

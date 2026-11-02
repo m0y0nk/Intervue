@@ -16,6 +16,7 @@ export const SetupPage: React.FC<SetupPageProps> = ({
   const [category, setCategory] = useState<InterviewCategory>("arrays_hashing");
   const [difficulty, setDifficulty] = useState<InterviewDifficulty>("medium");
   const [style, setStyle] = useState<InterviewStyle>("general");
+  const [language, setLanguage] = useState<"python" | "java" | "cpp">("python");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,7 +26,7 @@ export const SetupPage: React.FC<SetupPageProps> = ({
       style: style,
       difficulty: difficulty,
       category: category,
-      language: "python",
+      language: language,
       framing: "standard",
       duration: 1200,
     });
@@ -127,13 +128,33 @@ export const SetupPage: React.FC<SetupPageProps> = ({
                 <option value="meta">Meta (Speed & correctness)</option>
               </select>
             </div>
+
+            {/* Language */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                Target Language
+              </label>
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value as "python" | "java" | "cpp")}
+                className="w-full bg-[#18181c] border border-[#27272a] rounded-md px-3 py-2 text-xs text-zinc-200 outline-none focus:border-indigo-500 transition-colors"
+              >
+                <option value="python">Python 3.12 (Isolated Sandbox)</option>
+                <option value="java">Java 21 Temurin (Isolated Sandbox)</option>
+                <option value="cpp">C++ 20 (g++ -O2 Isolated Sandbox)</option>
+              </select>
+            </div>
           </div>
 
           {/* Execution Environment Info */}
           <div className="p-3 rounded-md bg-[#0e0e11] border border-[#27272a] flex items-center justify-between text-xs font-mono text-zinc-400">
             <div className="flex items-center space-x-2">
               <Shield className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Language: Python 3.12 (Isolated Sandbox)</span>
+              <span>
+                {language === "python" && "Python 3.12 (CPython Ephemeral Runner)"}
+                {language === "java" && "Java 21 (Temurin Alpine Runner)"}
+                {language === "cpp" && "C++ 20 (Alpine g++ Runner)"}
+              </span>
             </div>
             <div className="flex items-center space-x-1.5 text-zinc-400">
               <Clock className="w-3.5 h-3.5" />

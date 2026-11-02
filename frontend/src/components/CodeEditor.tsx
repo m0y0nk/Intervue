@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { python } from "@codemirror/lang-python";
+import { java } from "@codemirror/lang-java";
+import { cpp } from "@codemirror/lang-cpp";
 import { Play, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { RunCodeResponse, TestResultItem } from "../types";
 
 interface CodeEditorProps {
   initialCode: string;
+  language?: string;
   onCodeChange: (code: string) => Promise<void> | void;
   onRunCode: () => Promise<RunCodeResponse>;
   isRunning: boolean;
@@ -14,6 +17,7 @@ interface CodeEditorProps {
 
 export const CodeEditor: React.FC<CodeEditorProps> = ({
   initialCode,
+  language = "python",
   onCodeChange,
   onRunCode,
   isRunning,
@@ -102,7 +106,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
                 : "text-zinc-400 hover:text-zinc-200"
             }`}
           >
-            solution.py
+            {language === "java" ? "Solution.java" : language === "cpp" ? "solution.cpp" : "solution.py"}
           </button>
           <button
             onClick={() => setActiveTab("results")}
@@ -163,7 +167,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
             value={code}
             height="100%"
             theme="dark"
-            extensions={[python()]}
+            extensions={language === "java" ? [java()] : language === "cpp" ? [cpp()] : [python()]}
             onChange={handleChange}
             basicSetup={{
               lineNumbers: true,

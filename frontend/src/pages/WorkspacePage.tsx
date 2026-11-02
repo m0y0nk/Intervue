@@ -238,6 +238,7 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
             ) : (
               <CodeEditor
                 initialCode={session.code}
+                language={session.language || "python"}
                 onCodeChange={onCodeChange}
                 onRunCode={onRunCode}
                 isRunning={isRunningCode}

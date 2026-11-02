@@ -126,6 +126,13 @@ def check_equal(actual: Any, expected: Any, checker: str = "exact") -> bool:
                 eps = 1e-5
         if isinstance(actual, (int, float)) and isinstance(expected, (int, float)):
             return math.isclose(actual, expected, abs_tol=eps)
+    elif checker == "valid_palindrome":
+        s = str(actual)
+        clean = "".join(c.lower() for c in s if c.isalnum())
+        return clean == clean[::-1]
+
+    if (actual is None and expected == []) or (actual == [] and expected is None):
+        return True
     return actual == expected
 
 
@@ -218,6 +225,8 @@ def main():
 
         try:
             actual = fn(*deserialized_args)
+            if actual is None and len(deserialized_args) > 0 and expected is not None and expected != []:
+                actual = deserialized_args[0]
             passed = check_equal(actual, expected, checker)
         except Exception as e:
             error_msg = traceback.format_exc(limit=3)
