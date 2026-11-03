@@ -4,7 +4,7 @@ import logging
 import time
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from ..database.session import get_db
@@ -19,7 +19,12 @@ from ..models.database import (
     utcnow,
 )
 from ..schemas.evaluation import FinalEvaluationReport
-from ..schemas.problem import ProblemPrivate, ProblemPublic, generate_starter_templates
+from ..schemas.problem import (
+    ProblemPrivate,
+    ProblemPublic,
+    ProblemPublicBlind,
+    generate_starter_templates,
+)
 from ..schemas.session import (
     CodeUpdateRequest,
     InterviewConfig,
@@ -30,6 +35,7 @@ from ..schemas.session import (
     SubmitResponse,
 )
 from ..services.code_execution_service import code_execution_service
+from ..services.config_validator import ConfigValidationError, validate_interview_config
 from ..services.evaluation_service import evaluation_service
 from ..services.problem_generator import problem_generator
 from ..services.timer_service import STAGE_NAMES, TimerService
@@ -41,17 +47,30 @@ router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 _last_run_timestamps: Dict[str, float] = {}
 
 
-def _build_public_problem(problem_model: ProblemModel, stage: int) -> ProblemPublic:
+def _build_public_problem(
+    problem_model: ProblemModel, stage: int, mode: str = "standard"
+) -> Union[ProblemPublic, ProblemPublicBlind]:
     priv = ProblemPrivate.model_validate(json.loads(problem_model.private_data))
-    
+
     # In stages 1-2, revealed_constraints are empty.
     # From Stage 3 onwards, constraints are revealed!
     constraints_to_show = priv.revealed_constraints if stage >= 3 else []
-    
+
     # Ensure all language starter templates are present
     starter_templates = generate_starter_templates(priv.signature)
     starter_templates.update(priv.starter_code or {})
     priv.starter_code = starter_templates
+
+    if mode == "blind_mock":
+        return ProblemPublicBlind(
+            statement=priv.statement,
+            examples=priv.examples,
+            signature=priv.signature,
+            revealed_constraints=constraints_to_show,
+            visible_tests=priv.visible_tests,
+            starter_code=priv.starter_code,
+            checker=priv.checker,
+        )
 
     return ProblemPublic(
         id=priv.id,
@@ -79,18 +98,31 @@ def _serialize_session_state(db: Session, session: SessionModel) -> SessionState
     # Fetch public problem if available
     public_problem = None
     if session.problem:
-        public_problem = _build_public_problem(session.problem, session.stage)
+        public_problem = _build_public_problem(session.problem, session.stage, session.mode)
 
-    config = InterviewConfig(
-        source=session.source,
-        mode=session.mode,
-        style=session.style,
-        difficulty=session.difficulty,
-        category=session.category,
-        language=session.language,
-        framing=session.framing,
-        duration=session.duration,
-    )
+    if session.mode == "blind_mock":
+        # Server-side redaction: conceal difficulty and category from candidate state
+        config = InterviewConfig(
+            source=session.source,
+            mode=session.mode,
+            style=session.style,
+            difficulty=None,
+            category=None,
+            language=session.language,
+            framing=session.framing,
+            duration=session.duration,
+        )
+    else:
+        config = InterviewConfig(
+            source=session.source,
+            mode=session.mode,
+            style=session.style,
+            difficulty=session.difficulty,
+            category=session.category,
+            language=session.language,
+            framing=session.framing,
+            duration=session.duration,
+        )
 
     started_at_str = session.started_at.isoformat() if session.started_at else None
     resumed_at_str = session.last_resumed_at.isoformat() if session.last_resumed_at else None
@@ -107,7 +139,15 @@ def _serialize_session_state(db: Session, session: SessionModel) -> SessionState
         config=config,
         problem=public_problem,
         notes=notes_dict,
-        code=(session.code if (session.code and session.code.strip()) else (public_problem.starter_code.get(session.language, "") if public_problem else "")),
+        code=(
+            session.code
+            if (session.code and session.code.strip())
+            else (
+                public_problem.starter_code.get(session.language, "")
+                if public_problem
+                else ""
+            )
+        ),
         language=session.language,
     )
 
@@ -172,8 +212,15 @@ async def create_session(
     req: SessionCreateRequest,
     db: Session = Depends(get_db),
 ):
-    session_id = f"sess_{uuid.uuid4().hex[:12]}"
     cfg = req.config
+
+    # Validate configuration against Section 2 compatibility matrix
+    try:
+        validate_interview_config(cfg, db)
+    except ConfigValidationError as err:
+        raise HTTPException(status_code=422, detail=err.message)
+
+    session_id = f"sess_{uuid.uuid4().hex[:12]}"
 
     new_session = SessionModel(
         id=session_id,

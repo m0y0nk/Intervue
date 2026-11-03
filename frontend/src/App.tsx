@@ -91,7 +91,8 @@ export function App() {
       localStorage.setItem("intervue_active_session", res.session_id);
     } catch (e: any) {
       setIsGenerating(false);
-      alert(`Failed to create session: ${e.message}`);
+      // Re-throw so SetupPage can display the 422 validation error inline
+      throw e;
     }
   };
 

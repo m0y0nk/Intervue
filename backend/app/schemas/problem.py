@@ -247,7 +247,6 @@ class ProblemPublic(BaseModel):
 
 
 class ProblemPublicBlind(BaseModel):
-    id: str
     statement: str
     examples: List[ProblemExample]
     signature: FunctionSignature

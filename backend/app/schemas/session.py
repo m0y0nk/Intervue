@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field
 from .problem import ProblemPublic, ProblemPublicBlind
 
@@ -7,8 +7,8 @@ class InterviewConfig(BaseModel):
     source: Literal["ai_business", "leetcode", "random_dsa", "adaptive", "custom"] = "random_dsa"
     mode: Literal["standard", "blind_mock", "topic_mastery", "revision"] = "standard"
     style: Literal["google", "amazon", "meta", "general"] = "general"
-    difficulty: Literal["easy", "medium", "hard", "adaptive"] = "medium"
-    category: Literal[
+    difficulty: Optional[Literal["easy", "medium", "hard", "adaptive"]] = "medium"
+    category: Optional[Literal[
         "arrays_hashing",
         "two_pointers",
         "sliding_window",
@@ -23,7 +23,7 @@ class InterviewConfig(BaseModel):
         "heaps",
         "intervals",
         "mixed",
-    ] = "arrays_hashing"
+    ]] = "arrays_hashing"
     language: Literal["python", "java", "cpp"] = "python"
     framing: Literal["standard", "business"] = "standard"
     duration: int = 1200  # fixed 20 minutes (1200 s), not configurable
@@ -43,7 +43,7 @@ class SessionState(BaseModel):
     started_at: Optional[str] = None
     last_resumed_at: Optional[str] = None
     config: InterviewConfig
-    problem: Optional[ProblemPublic] = None
+    problem: Optional[Union[ProblemPublic, ProblemPublicBlind]] = None
     notes: Dict[str, str] = Field(default_factory=dict)  # stage index -> notes text
     code: str = ""
     language: str = "python"

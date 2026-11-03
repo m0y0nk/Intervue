@@ -1,7 +1,7 @@
 import logging
-from typing import List, Optional
+from typing import List, Optional, Union
 from pydantic import BaseModel, Field
-from ..schemas.problem import ProblemPublic
+from ..schemas.problem import ProblemPublic, ProblemPublicBlind
 from ..schemas.evaluation import EvaluatorSignal
 from ..config.styles import get_style_params
 from .gemini_service import gemini_service
@@ -16,12 +16,13 @@ class InterviewerOutput(BaseModel):
 class InterviewerService:
     async def get_response(
         self,
-        problem: ProblemPublic,
+        problem: Union[ProblemPublic, ProblemPublicBlind],
         stage: int,
         style_name: str,
         candidate_message: str,
         candidate_notes: str,
         evaluator_signal: Optional[EvaluatorSignal] = None,
+        is_blind: bool = False,
     ) -> str:
         """
         CRITICAL RULE:
@@ -37,6 +38,17 @@ class InterviewerService:
         if evaluator_signal:
             signal_info = f"Evaluator Signal: On Track={evaluator_signal.on_track}, Gap Type={evaluator_signal.gap_type}, Probe Type={evaluator_signal.probe_type}"
 
+        blind_instructions = ""
+        problem_header = ""
+        if is_blind or isinstance(problem, ProblemPublicBlind):
+            blind_instructions = (
+                "- This is a BLIND mock interview. Server-side redaction is active.\n"
+                "- NEVER mention the problem name, title, category, difficulty rating, or expected complexities.\n"
+                "- Do NOT confirm or deny problem titles or categories if the candidate guesses them.\n"
+            )
+        else:
+            problem_header = f"Problem: {getattr(problem, 'title', '')}\n"
+
         system_instruction = f"""
 You are an expert technical interviewer conducting a live coding interview.
 Tone: {style.tone}
@@ -46,11 +58,11 @@ Rules:
 - NEVER give hints, suggestions, algorithms, data structures, or code.
 - If the candidate asks for help or asks if they are right, ask them to justify their reasoning or consider edge cases.
 - Keep your reply terse, professional, and limited to 1-3 sentences.
+{blind_instructions}
 """
 
         prompt = f"""
-Problem: {problem.title}
-Public Statement: {problem.statement}
+{problem_header}Public Statement: {problem.statement}
 Current Stage: {stage}
 {signal_info}
 

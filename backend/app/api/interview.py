@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from ..database.session import get_db
 from ..models.database import ChatMessageModel, NotesModel, ProblemModel, SessionModel
-from ..schemas.problem import ProblemPrivate, ProblemPublic
+from ..schemas.problem import ProblemPrivate, ProblemPublic, ProblemPublicBlind
 from ..schemas.session import (
     ChatMessageSchema,
     InterviewerChatRequest,
@@ -92,18 +92,31 @@ async def chat_with_interviewer(
     # Parse problem
     problem_priv = ProblemPrivate.model_validate(json.loads(session.problem.private_data))
 
-    # Build public problem for interviewer
-    problem_pub = ProblemPublic(
-        id=problem_priv.id,
-        title=problem_priv.title,
-        statement=problem_priv.statement,
-        examples=problem_priv.examples,
-        signature=problem_priv.signature,
-        revealed_constraints=problem_priv.revealed_constraints if session.stage >= 3 else [],
-        visible_tests=problem_priv.visible_tests,
-        starter_code=problem_priv.starter_code,
-        checker=problem_priv.checker,
-    )
+    # Build public problem for interviewer (respecting blind mock redaction)
+    if session.mode == "blind_mock":
+        problem_pub = ProblemPublicBlind(
+            statement=problem_priv.statement,
+            examples=problem_priv.examples,
+            signature=problem_priv.signature,
+            revealed_constraints=problem_priv.revealed_constraints if session.stage >= 3 else [],
+            visible_tests=problem_priv.visible_tests,
+            starter_code=problem_priv.starter_code or {},
+            checker=problem_priv.checker,
+        )
+    else:
+        problem_pub = ProblemPublic(
+            id=problem_priv.id,
+            title=problem_priv.title,
+            statement=problem_priv.statement,
+            examples=problem_priv.examples,
+            signature=problem_priv.signature,
+            revealed_constraints=problem_priv.revealed_constraints if session.stage >= 3 else [],
+            visible_tests=problem_priv.visible_tests,
+            starter_code=problem_priv.starter_code or {},
+            checker=problem_priv.checker,
+            category=problem_priv.category,
+            difficulty=problem_priv.difficulty,
+        )
 
     # Evaluator generates narrow signal
     signal = await evaluation_service.get_stage_signal(
@@ -121,6 +134,7 @@ async def chat_with_interviewer(
         candidate_message=req.message,
         candidate_notes=candidate_notes,
         evaluator_signal=signal,
+        is_blind=(session.mode == "blind_mock"),
     )
 
     # Record interviewer reply
