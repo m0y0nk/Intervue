@@ -22,68 +22,103 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
   onSaveNotes,
 }) => {
   const [selectedStage, setSelectedStage] = useState<number>(currentStage);
-  const [content, setContent] = useState<string>(notes[String(currentStage)] || "");
+  const [localNotes, setLocalNotes] = useState<Record<string, string>>(() => ({ ...notes }));
   const [isSaving, setIsSaving] = useState<boolean>(false);
-  const [lastSavedContent, setLastSavedContent] = useState<string>(notes[String(currentStage)] || "");
 
+  const localNotesRef = useRef<Record<string, string>>({ ...notes });
+  const lastSavedRef = useRef<Record<string, string>>({ ...notes });
+  const selectedStageRef = useRef<number>(selectedStage);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Keep selected tab updated when stage advances
+  selectedStageRef.current = selectedStage;
+
+  // Merge external notes updates if any stage changed externally and isn't dirty
+  useEffect(() => {
+    setLocalNotes((prev) => {
+      const updated = { ...prev };
+      for (const [k, v] of Object.entries(notes)) {
+        // If not in localNotes or was already saved, update from parent
+        if (updated[k] === undefined || updated[k] === lastSavedRef.current[k]) {
+          updated[k] = v;
+          lastSavedRef.current[k] = v;
+        }
+      }
+      localNotesRef.current = updated;
+      return updated;
+    });
+  }, [notes]);
+
+  // Keep selected tab updated when interview stage advances
   useEffect(() => {
     setSelectedStage(currentStage);
-    const initial = notes[String(currentStage)] || "";
-    setContent(initial);
-    setLastSavedContent(initial);
   }, [currentStage]);
 
-  // Flush any pending save immediately when switching tabs
+  // Flush pending save immediately when switching tabs
   const handleSelectTab = (stage: number) => {
+    if (stage === selectedStage) return;
+
+    const currentStageStr = String(selectedStage);
+    const currentContent = localNotesRef.current[currentStageStr] ?? "";
+
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
       saveTimeoutRef.current = null;
-      if (content !== lastSavedContent) {
-        onSaveNotes(selectedStage, content);
-        setLastSavedContent(content);
-      }
     }
+
+    if (currentContent !== (lastSavedRef.current[currentStageStr] ?? "")) {
+      onSaveNotes(selectedStage, currentContent);
+      lastSavedRef.current[currentStageStr] = currentContent;
+    }
+
     setSelectedStage(stage);
-    const nextContent = notes[String(stage)] || "";
-    setContent(nextContent);
-    setLastSavedContent(nextContent);
     setIsSaving(false);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newContent = e.target.value;
-    setContent(newContent);
+    const stageStr = String(selectedStage);
 
-    // If there is an existing debounce timer, reset it
+    // Update in-memory local notes immediately
+    setLocalNotes((prev) => {
+      const next = { ...prev, [stageStr]: newContent };
+      localNotesRef.current = next;
+      return next;
+    });
+
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
 
-    // Set saving indicator
     setIsSaving(true);
 
-    // Debounce save by 1.5 seconds after user stops typing
+    const activeStage = selectedStage;
     saveTimeoutRef.current = setTimeout(async () => {
       try {
-        await onSaveNotes(selectedStage, newContent);
-        setLastSavedContent(newContent);
+        await onSaveNotes(activeStage, newContent);
+        lastSavedRef.current[String(activeStage)] = newContent;
       } finally {
         setIsSaving(false);
       }
     }, 1500);
   };
 
-  // Cleanup timeout on unmount
+  // Flush on unmount
   useEffect(() => {
     return () => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
+      const stg = selectedStageRef.current;
+      const stgStr = String(stg);
+      const content = localNotesRef.current[stgStr] ?? "";
+      if (content !== (lastSavedRef.current[stgStr] ?? "")) {
+        onSaveNotes(stg, content);
+        lastSavedRef.current[stgStr] = content;
+      }
     };
   }, []);
+
+  const activeContent = localNotes[String(selectedStage)] ?? "";
 
   return (
     <div className="flex flex-col h-full bg-[#121215] border border-[#27272a] rounded-lg overflow-hidden">
@@ -126,7 +161,7 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
       {/* Text Area */}
       <div className="relative flex-1 p-3">
         <textarea
-          value={content}
+          value={activeContent}
           onChange={handleChange}
           placeholder={`Write structured notes for ${STAGE_LABELS[selectedStage]} here... (e.g. assumptions, Big-O analysis, trade-offs)`}
           className="w-full h-full bg-transparent resize-none outline-none font-mono text-xs text-zinc-200 leading-relaxed placeholder:text-zinc-600 focus:ring-0 focus:outline-none"

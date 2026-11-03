@@ -142,12 +142,29 @@ export function App() {
 
   // Save notes
   const handleSaveNotes = useCallback(async (stage: number, content: string) => {
+    setSession((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        notes: {
+          ...prev.notes,
+          [String(stage)]: content,
+        },
+      };
+    });
     if (!sessionId) return;
     await api.updateNotes(sessionId, stage, content);
   }, [sessionId]);
 
   // Save code
   const handleCodeChange = useCallback(async (code: string) => {
+    setSession((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        code: code,
+      };
+    });
     if (!sessionId) return;
     await api.updateCode(sessionId, code);
   }, [sessionId]);

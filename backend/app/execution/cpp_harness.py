@@ -292,6 +292,12 @@ def main():
 
     work_dir = "/tmp"
 
+    # Wrap in class Solution if user wrote standalone function
+    if "class Solution" not in code:
+        code_to_write = f"class Solution {{\npublic:\n{code}\n}};\n"
+    else:
+        code_to_write = code
+
     import re
     is_void = bool(re.search(r'\bvoid\s+' + re.escape(function_name) + r'\s*\(', code))
 
@@ -343,7 +349,7 @@ def main():
     }}
 """)
 
-    source_code = HARNESS_TEMPLATE.replace("USER_CODE_PLACEHOLDER", code).replace(
+    source_code = HARNESS_TEMPLATE.replace("USER_CODE_PLACEHOLDER", code_to_write).replace(
         "TEST_INVOCATIONS", "\n".join(invocations)
     )
 

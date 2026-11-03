@@ -188,9 +188,20 @@ def main():
 
     fn = exec_globals.get(function_name)
     if not fn or not callable(fn):
-        # Fallback: search for first user-defined function
+        # Fallback: check if defined inside class Solution
+        sol_cls = exec_globals.get("Solution")
+        if sol_cls and isinstance(sol_cls, type):
+            try:
+                sol_inst = sol_cls()
+                if hasattr(sol_inst, function_name) and callable(getattr(sol_inst, function_name)):
+                    fn = getattr(sol_inst, function_name)
+            except Exception:
+                pass
+
+    if not fn or not callable(fn):
+        # Fallback: search for first user-defined function or method
         for k, v in exec_globals.items():
-            if callable(v) and getattr(v, "__module__", None) in (None, "__main__") and k not in ("ListNode", "TreeNode"):
+            if callable(v) and getattr(v, "__module__", None) in (None, "__main__") and k not in ("ListNode", "TreeNode", "Solution"):
                 fn = v
                 break
 

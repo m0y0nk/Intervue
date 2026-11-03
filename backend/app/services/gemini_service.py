@@ -105,7 +105,28 @@ class GeminiService:
                     {"args": [[3, 2, 4], 6], "expected": [1, 2]},
                 ],
                 starter_code={
-                    "python": "def two_sum(nums: list[int], target: int) -> list[int]:\n    # Write your solution here\n    pass\n"
+                    "python": "def two_sum(nums: list[int], target: int) -> list[int]:\n    # Write your solution here\n    pass\n",
+                    "java": """import java.util.*;
+
+public class Solution {
+    public int[] twoSum(int[] nums, int target) {
+        // Write your solution here
+        return new int[]{};
+    }
+}
+""",
+                    "cpp": """#include <iostream>
+#include <vector>
+#include <unordered_map>
+
+class Solution {
+public:
+    std::vector<int> twoSum(std::vector<int>& nums, int target) {
+        // Write your solution here
+        return {};
+    }
+};
+""",
                 },
                 checker="exact",
                 category="arrays_hashing",

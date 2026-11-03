@@ -1,6 +1,6 @@
 import logging
 from typing import Optional
-from ..schemas.problem import ProblemPrivate
+from ..schemas.problem import ProblemPrivate, generate_starter_templates
 from ..schemas.session import InterviewConfig
 from .gemini_service import gemini_service
 from .problem_validator import problem_validator
@@ -40,13 +40,11 @@ Requirements:
                 temperature=0.3,
             )
 
-            # Ensure valid starter template exists
-            if not problem_candidate.starter_code or config.language not in problem_candidate.starter_code:
-                fn_name = problem_candidate.signature.function_name
-                args_str = ", ".join(a.name for a in problem_candidate.signature.args)
-                problem_candidate.starter_code = {
-                    "python": f"def {fn_name}({args_str}):\n    # Your solution body here\n    pass\n"
-                }
+            # Ensure valid starter template exists for all supported languages
+            starter_templates = generate_starter_templates(problem_candidate.signature)
+            if problem_candidate.starter_code:
+                starter_templates.update(problem_candidate.starter_code)
+            problem_candidate.starter_code = starter_templates
 
             # Run validation pipeline
             passed, msg = await problem_validator.validate_problem(problem_candidate)

@@ -228,14 +228,15 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
             </div>
           </div>
 
-          <div className="flex-1 overflow-hidden">
-            {centerView === "notes" ? (
+          <div className="flex-1 overflow-hidden relative">
+            <div className={`h-full ${centerView === "notes" ? "block" : "hidden"}`}>
               <NotesEditor
                 currentStage={session.stage}
                 notes={session.notes}
                 onSaveNotes={onSaveNotes}
               />
-            ) : (
+            </div>
+            <div className={`h-full ${centerView === "code" ? "block" : "hidden"}`}>
               <CodeEditor
                 initialCode={session.code}
                 language={session.language || "python"}
@@ -244,7 +245,7 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
                 isRunning={isRunningCode}
                 rateLimitSecondsLeft={rateLimitSecondsLeft}
               />
-            )}
+            </div>
           </div>
         </div>
 

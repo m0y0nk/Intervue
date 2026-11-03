@@ -19,7 +19,7 @@ from ..models.database import (
     utcnow,
 )
 from ..schemas.evaluation import FinalEvaluationReport
-from ..schemas.problem import ProblemPrivate, ProblemPublic
+from ..schemas.problem import ProblemPrivate, ProblemPublic, generate_starter_templates
 from ..schemas.session import (
     CodeUpdateRequest,
     InterviewConfig,
@@ -48,6 +48,11 @@ def _build_public_problem(problem_model: ProblemModel, stage: int) -> ProblemPub
     # From Stage 3 onwards, constraints are revealed!
     constraints_to_show = priv.revealed_constraints if stage >= 3 else []
     
+    # Ensure all language starter templates are present
+    starter_templates = generate_starter_templates(priv.signature)
+    starter_templates.update(priv.starter_code or {})
+    priv.starter_code = starter_templates
+
     return ProblemPublic(
         id=priv.id,
         title=priv.title,
@@ -102,7 +107,7 @@ def _serialize_session_state(db: Session, session: SessionModel) -> SessionState
         config=config,
         problem=public_problem,
         notes=notes_dict,
-        code=session.code or "",
+        code=(session.code if (session.code and session.code.strip()) else (public_problem.starter_code.get(session.language, "") if public_problem else "")),
         language=session.language,
     )
 
@@ -129,6 +134,11 @@ async def _async_generate_and_attach_problem(session_id: str):
 
         problem_priv = await problem_generator.generate_problem(cfg)
 
+        # Ensure starter templates for all languages are present
+        starter_templates = generate_starter_templates(problem_priv.signature)
+        starter_templates.update(problem_priv.starter_code or {})
+        problem_priv.starter_code = starter_templates
+
         # Store in database
         problem_model = ProblemModel(
             id=problem_priv.id,
@@ -143,7 +153,7 @@ async def _async_generate_and_attach_problem(session_id: str):
 
         session.problem_id = problem_model.id
         session.status = "ready"
-        session.code = problem_priv.starter_code.get(session.language, "")
+        session.code = starter_templates.get(session.language, "")
         db.commit()
         logger.info(f"Session {session_id} prepared with problem {problem_model.title}")
 

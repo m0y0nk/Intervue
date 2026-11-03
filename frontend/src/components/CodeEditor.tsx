@@ -23,21 +23,72 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   isRunning,
   rateLimitSecondsLeft,
 }) => {
-  const [code, setCode] = useState<string>(initialCode);
+  const getDefaultTemplate = (lang: string) => {
+    if (lang === "java") {
+      return `import java.util.*;
+
+// Pre-defined ListNode and TreeNode types are available.
+// Keep class Solution public with your member method.
+public class Solution {
+    public int[] solution(int[] nums) {
+        // Write your solution here
+        return new int[]{};
+    }
+}
+`;
+    }
+    if (lang === "cpp") {
+      return `#include <iostream>
+#include <vector>
+#include <string>
+#include <unordered_map>
+#include <algorithm>
+
+// Pre-defined ListNode and TreeNode types are available.
+// Keep class Solution with your public member function.
+class Solution {
+public:
+    std::vector<int> solution(std::vector<int>& nums) {
+        // Write your solution here
+        return {};
+    }
+};
+`;
+    }
+    return `# Pre-defined ListNode and TreeNode classes are available.
+def solution(*args):
+    # Write your solution here
+    pass
+`;
+  };
+
+  const effectiveInitial = initialCode && initialCode.trim() ? initialCode : getDefaultTemplate(language);
+  const [code, setCode] = useState<string>(effectiveInitial);
   const [isSaving, setIsSaving] = useState<boolean>(false);
-  const [lastSavedCode, setLastSavedCode] = useState<string>(initialCode);
+  const [lastSavedCode, setLastSavedCode] = useState<string>(effectiveInitial);
   const [runResults, setRunResults] = useState<RunCodeResponse | null>(null);
   const [activeTab, setActiveTab] = useState<"editor" | "results">("editor");
 
+  const codeRef = useRef<string>(effectiveInitial);
+  const lastSavedCodeRef = useRef<string>(effectiveInitial);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Sync initialCode only when initialCode changes and user is not actively editing unsaved changes
   useEffect(() => {
-    setCode(initialCode);
-    setLastSavedCode(initialCode);
+    if (initialCode && initialCode.trim()) {
+      // Only overwrite if code is currently empty or matches what was previously saved
+      if (!codeRef.current || codeRef.current === lastSavedCodeRef.current) {
+        setCode(initialCode);
+        codeRef.current = initialCode;
+        setLastSavedCode(initialCode);
+        lastSavedCodeRef.current = initialCode;
+      }
+    }
   }, [initialCode]);
 
   const handleChange = (val: string) => {
     setCode(val);
+    codeRef.current = val;
 
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -50,6 +101,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       try {
         await onCodeChange(val);
         setLastSavedCode(val);
+        lastSavedCodeRef.current = val;
       } finally {
         setIsSaving(false);
       }
@@ -61,11 +113,12 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
       saveTimeoutRef.current = null;
-      if (code !== lastSavedCode) {
-        await onCodeChange(code);
-        setLastSavedCode(code);
-        setIsSaving(false);
-      }
+    }
+    if (codeRef.current !== lastSavedCodeRef.current) {
+      await onCodeChange(codeRef.current);
+      setLastSavedCode(codeRef.current);
+      lastSavedCodeRef.current = codeRef.current;
+      setIsSaving(false);
     }
 
     try {
@@ -85,10 +138,15 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     }
   };
 
+  // Flush on unmount
   useEffect(() => {
     return () => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
+      }
+      if (codeRef.current !== lastSavedCodeRef.current) {
+        onCodeChange(codeRef.current);
+        lastSavedCodeRef.current = codeRef.current;
       }
     };
   }, []);
