@@ -181,6 +181,28 @@ async def _async_generate_and_attach_problem(
             duration=session.duration,
         )
 
+        if session.mode == "revision":
+            # Revision mode: load a prior completed problem from history
+            query = (
+                db.query(SessionModel)
+                .filter(SessionModel.status == "finished", SessionModel.problem_id.isnot(None))
+            )
+            if cfg.category != "mixed":
+                query = query.filter(SessionModel.category == cfg.category)
+            prior_session = query.order_by(SessionModel.finished_at.desc()).first()
+
+            if prior_session and prior_session.problem:
+                problem_model = prior_session.problem
+                problem_priv = ProblemPrivate.model_validate(json.loads(problem_model.private_data))
+                session.problem_id = problem_model.id
+                session.status = "ready"
+                starter_templates = generate_starter_templates(problem_priv.signature)
+                starter_templates.update(problem_priv.starter_code or {})
+                session.code = starter_templates.get(session.language, "")
+                db.commit()
+                logger.info(f"Revision session {session_id} prepared with problem {problem_model.title}")
+                return
+
         problem_priv = await problem_generator.generate_problem(
             cfg,
             db=db,
@@ -518,6 +540,22 @@ async def submit_solution(session_id: str, db: Session = Depends(get_db)):
     chat_rows = db.query(ChatMessageModel).filter(ChatMessageModel.session_id == session.id).all()
     chat_log = [{"sender": c.sender, "message": c.message, "stage": c.stage} for c in chat_rows]
 
+    # Look up prior evaluation for revision mode comparison
+    prior_eval = None
+    if session.mode == "revision":
+        prior_session = (
+            db.query(SessionModel)
+            .filter(
+                SessionModel.problem_id == session.problem_id,
+                SessionModel.status == "finished",
+                SessionModel.id != session.id,
+            )
+            .order_by(SessionModel.finished_at.desc())
+            .first()
+        )
+        if prior_session and prior_session.evaluation:
+            prior_eval = prior_session.evaluation
+
     # Generate final report
     report = await evaluation_service.generate_final_report(
         session_id=session.id,
@@ -529,6 +567,8 @@ async def submit_solution(session_id: str, db: Session = Depends(get_db)):
         stage_timings=stage_timings,
         all_notes=notes_dict,
         chat_log=chat_log,
+        failure_category=failure_cat,
+        prior_evaluation=prior_eval,
     )
 
     eval_model = EvaluationModel(

@@ -134,6 +134,21 @@ export interface DimensionScore {
   rationale: string;
 }
 
+export interface RevisionComparison {
+  prior_session_id: string;
+  prior_date?: string;
+  prior_score: number;
+  current_score: number;
+  score_delta: number;
+  prior_verdict: string;
+  current_verdict: string;
+  prior_tests_passed: number;
+  current_tests_passed: number;
+  tests_total: number;
+  dimension_deltas: Record<string, number>;
+  summary: string;
+}
+
 export interface FinalEvaluationReport {
   session_id: string;
   total_score: number;
@@ -142,8 +157,11 @@ export interface FinalEvaluationReport {
   strengths: string[];
   weaknesses: string[];
   idea_to_code_gap: string;
+  algorithmic_score?: number;
+  implementation_score?: number;
   recommendations: string[];
   tests_passed: number;
   tests_total: number;
   stage_timings: Record<string, number>;
+  revision_comparison?: RevisionComparison;
 }
