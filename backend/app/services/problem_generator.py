@@ -218,6 +218,20 @@ Requirements:
 
         id_note = f"The user says this is LeetCode problem #{leetcode_id}. " if leetcode_id else ""
 
+        if config.framing == "business":
+            framing_instructions = """
+BUSINESS FRAMING REQUIRED:
+- Wrap and disguise the problem in a realistic business scenario (e.g. e-commerce distribution, fintech transaction stream, logistics fleet routing, cloud microservice rate limiting).
+- Strictly CONCEAL all raw DSA terminology, algorithm names, and canonical LeetCode problem titles from the public statement and description.
+- The business story, variable names, and examples must map 1:1 to the algorithmic logic, inputs, outputs, and constraints of the pasted problem.
+- Preserve all mathematical invariants, computational bounds, and time/space complexities exactly.
+"""
+        else:
+            framing_instructions = """
+STANDARD FRAMING:
+- Parse and preserve the statement, examples, and constraints faithfully from the pasted text.
+"""
+
         prompt = f"""
 {id_note}The user has pasted the following problem statement verbatim from LeetCode:
 
@@ -225,21 +239,24 @@ Requirements:
 {statement.strip()}
 ---
 
+{framing_instructions}
+
 Your task:
-1. Parse and preserve the statement, examples, and constraints EXACTLY as given.
-2. Convert to the standard ProblemPrivate schema.
-3. Generate a 100% correct Python reference solution.
-4. Generate an independent Python brute-force solution.
-5. Generate `generate_inputs(n)` respecting the stated constraints.
-6. Generate hidden test cases (at least 4 edge cases).
-7. Generate rubric items.
+1. Parse the core problem from the pasted text.
+2. Infer the primary category (e.g. arrays_hashing, two_pointers, sliding_window, binary_search, dynamic_programming, greedy, trees, graphs) and difficulty (easy, medium, hard) from the problem.
+3. Convert to the standard ProblemPrivate schema.
+4. Generate a 100% correct Python reference solution.
+5. Generate an independent Python brute-force solution.
+6. Generate Python input generator `generate_inputs(n=10)` returning small argument lists (lengths <= 15) for fast differential testing.
+7. Generate hidden test cases (at least 4 edge cases).
+8. Generate rubric items aligned to the 6 interview stages.
 
 CRITICAL RULES:
-- Do NOT reveal the problem title or LeetCode ID in the public statement field.
-  Set `title` to a generic description (e.g. "Array Subsequence Challenge").
+- Do NOT reveal the original LeetCode title or LeetCode number in the public statement field.
+  Set `title` to an appropriate descriptive title.
 - Do NOT reveal difficulty or category in the statement.
 - Do NOT include any editorial hints or known optimal approaches in the statement.
-- Preserve all examples and constraints from the pasted text faithfully.
+- Visible examples and constraints must match the problem logic accurately.
 """
         problem = await self._generate_and_validate(prompt, config, "leetcode")
 
@@ -338,11 +355,11 @@ design questions without clear input/output), set `title = "UNSUPPORTED"` and
                 starter_templates.update(candidate.starter_code)
             candidate.starter_code = starter_templates
 
-            # Ensure category/difficulty populated from config if missing
+            # Ensure category/difficulty populated from config or defaults if missing
             if not candidate.category or candidate.category == "mixed":
-                candidate.category = config.category
+                candidate.category = config.category if config.category and config.category != "mixed" else "arrays_hashing"
             if not candidate.difficulty:
-                candidate.difficulty = config.difficulty
+                candidate.difficulty = config.difficulty or "medium"
 
             passed, msg = await problem_validator.validate_problem(candidate)
             if passed:

@@ -212,11 +212,23 @@ class TestAcceptanceCriteria2ConfigValidation:
     def test_business_framing_with_non_random_dsa_source_rejected(self):
         r = client.post("/api/sessions", json={
             "config": {
-                "source": "leetcode",
+                "source": "custom",
                 "framing": "business",
-            }
+            },
+            "custom_statement": "Valid statement with enough characters for custom problem testing",
         })
         assert r.status_code == 422
+        assert "Business framing is only supported for sources 'random_dsa' and 'leetcode'" in r.json()["detail"]
+
+    def test_business_framing_with_leetcode_source_accepted(self):
+        r = client.post("/api/sessions", json={
+            "config": {
+                "source": "leetcode",
+                "framing": "business",
+            },
+            "leetcode_statement": "Valid statement with enough characters for leetcode problem statement testing example",
+        })
+        assert r.status_code == 202
 
     def test_valid_standard_config_accepted(self):
         r = client.post("/api/sessions", json={

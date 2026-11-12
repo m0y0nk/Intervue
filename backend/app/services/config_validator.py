@@ -27,7 +27,7 @@ def validate_interview_config(cfg: InterviewConfig, db: Session) -> None:
     - adaptive source with fewer than 5 completed interviews and fewer than 2 in any category:
       reject and tell user to use Random Practice or pick a topic. Never fabricate history.
     - adaptive difficulty: only allowed when source is adaptive.
-    - framing == business: only allowed for random_dsa.
+    - framing == business: only allowed for random_dsa and leetcode.
     - blind_mock: allowed with any source or mode (topic_mastery + blind_mock allowed).
     """
 
@@ -43,10 +43,10 @@ def validate_interview_config(cfg: InterviewConfig, db: Session) -> None:
     # 3. Framing constraint (SPEC line 48)
     if cfg.framing == "business":
         if cfg.source == "ai_business":
-            # ai_business source is already inherently business-framed; normalize framing to standard
+            # ai_business source is inherently business-framed; normalize framing to standard
             cfg.framing = "standard"
-        elif cfg.source != "random_dsa":
-            raise ConfigValidationError("Business framing is only supported for source 'random_dsa'.")
+        elif cfg.source not in ("random_dsa", "leetcode"):
+            raise ConfigValidationError("Business framing is only supported for sources 'random_dsa' and 'leetcode'.")
 
     # 4. Adaptive difficulty constraint (SPEC line 43)
     if cfg.difficulty == "adaptive" and cfg.source != "adaptive":

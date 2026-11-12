@@ -107,16 +107,31 @@ def test_topic_mastery_accepts_specific_category():
     db.close()
 
 
-def test_business_framing_requires_random_dsa():
+def test_business_framing_allowed_for_random_dsa_and_leetcode():
     db = TestingSessionLocal()
-    cfg = InterviewConfig(
+    # leetcode with business framing is allowed
+    cfg_lc = InterviewConfig(
         source="leetcode",
         framing="business",
     )
-    with pytest.raises(ConfigValidationError, match="Business framing is only supported for source 'random_dsa'"):
-        validate_interview_config(cfg, db)
+    validate_interview_config(cfg_lc, db)
 
-    resp = client.post("/api/sessions", json={"config": cfg.model_dump()})
+    # random_dsa with business framing is allowed
+    cfg_rd = InterviewConfig(
+        source="random_dsa",
+        framing="business",
+    )
+    validate_interview_config(cfg_rd, db)
+
+    # custom with business framing is rejected
+    cfg_custom = InterviewConfig(
+        source="custom",
+        framing="business",
+    )
+    with pytest.raises(ConfigValidationError, match="Business framing is only supported for sources 'random_dsa' and 'leetcode'"):
+        validate_interview_config(cfg_custom, db)
+
+    resp = client.post("/api/sessions", json={"config": cfg_custom.model_dump(), "custom_statement": "Valid statement with more than twenty chars"})
     assert resp.status_code == 422
     db.close()
 

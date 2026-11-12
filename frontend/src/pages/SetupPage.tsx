@@ -11,7 +11,6 @@ import {
   BookOpen,
   RefreshCw,
   AlertCircle,
-  Briefcase,
   Target,
   Code2,
   FileCode,
@@ -35,7 +34,7 @@ interface SetupPageProps {
 }
 
 const SOURCE_META: Record<
-  InterviewSource,
+  "random_dsa" | "leetcode" | "adaptive" | "custom",
   {
     label: string;
     icon: React.ReactNode;
@@ -47,20 +46,15 @@ const SOURCE_META: Record<
     icon: <Sparkles className="w-3.5 h-3.5" />,
     description: "Standard algorithmic problem with sandbox differential validation.",
   },
-  ai_business: {
-    label: "Business Scenario",
-    icon: <Briefcase className="w-3.5 h-3.5" />,
-    description: "Real-world domain framing (fintech, logistics, streaming) hiding the DSA core.",
+  leetcode: {
+    label: "LeetCode Paste",
+    icon: <Code2 className="w-3.5 h-3.5" />,
+    description: "Paste a problem statement from LeetCode. Converted and verified in sandbox.",
   },
   adaptive: {
     label: "Adaptive Practice",
     icon: <Target className="w-3.5 h-3.5" />,
     description: "History-driven weakness targeting. Requires >= 5 completed interviews.",
-  },
-  leetcode: {
-    label: "LeetCode Paste",
-    icon: <Code2 className="w-3.5 h-3.5" />,
-    description: "Paste a problem statement from LeetCode. Converted and verified in sandbox.",
   },
   custom: {
     label: "Custom Problem",
@@ -137,7 +131,7 @@ export const SetupPage: React.FC<SetupPageProps> = ({
   const handleSourceChange = (newSource: InterviewSource) => {
     setSource(newSource);
     setValidationError(null);
-    if (newSource !== "random_dsa" && framing === "business") {
+    if (newSource !== "random_dsa" && newSource !== "leetcode" && framing === "business") {
       setFraming("standard");
     }
     if (newSource === "adaptive") {
@@ -151,7 +145,7 @@ export const SetupPage: React.FC<SetupPageProps> = ({
     e.preventDefault();
     setValidationError(null);
 
-    if (isMixedBlocked) {
+    if (source !== "leetcode" && isMixedBlocked) {
       setValidationError("Topic Mastery requires a specific category, not 'Mixed'.");
       return;
     }
@@ -172,10 +166,10 @@ export const SetupPage: React.FC<SetupPageProps> = ({
           source,
           mode,
           style,
-          difficulty,
-          category,
+          difficulty: source === "leetcode" ? undefined : difficulty,
+          category: source === "leetcode" ? undefined : category,
           language,
-          framing: source === "random_dsa" ? framing : "standard",
+          framing: (source === "random_dsa" || source === "leetcode") ? framing : "standard",
           duration: 1200,
         },
         leetcode_id: leetcodeId.trim() || undefined,
@@ -242,8 +236,8 @@ export const SetupPage: React.FC<SetupPageProps> = ({
             <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
               Question Source
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {(Object.keys(SOURCE_META) as InterviewSource[]).map((s) => {
+            <div className="grid grid-cols-2 gap-2">
+              {(Object.keys(SOURCE_META) as (keyof typeof SOURCE_META)[]).map((s) => {
                 const meta = SOURCE_META[s];
                 const isActive = source === s;
                 return (
@@ -367,8 +361,8 @@ export const SetupPage: React.FC<SetupPageProps> = ({
             </div>
           )}
 
-          {/* Random DSA Framing Option */}
-          {source === "random_dsa" && (
+          {/* Framing Option for Random DSA & LeetCode Paste */}
+          {(source === "random_dsa" || source === "leetcode") && (
             <div className="space-y-1.5 p-3 rounded-lg bg-[#18181c] border border-zinc-800">
               <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400 block">
                 Problem Framing
@@ -403,19 +397,6 @@ export const SetupPage: React.FC<SetupPageProps> = ({
                   </div>
                 </button>
               </div>
-            </div>
-          )}
-
-          {/* AI Business Notice */}
-          {source === "ai_business" && (
-            <div className="p-3 rounded-lg bg-emerald-950/30 border border-emerald-800/50 text-xs text-emerald-300/90 space-y-1">
-              <div className="font-semibold flex items-center space-x-1.5">
-                <Briefcase className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Business Context Concealment</span>
-              </div>
-              <p className="text-[11px] text-emerald-200/70 leading-relaxed">
-                The problem is disguised inside a realistic domain (e-commerce, fintech, logistics, cloud infra). Algorithm and data structure names are strictly concealed from the statement.
-              </p>
             </div>
           )}
 
@@ -454,8 +435,8 @@ export const SetupPage: React.FC<SetupPageProps> = ({
             </div>
           </div>
 
-          {/* Category (Hidden/auto when adaptive) */}
-          {source !== "adaptive" && (
+          {/* Category (Hidden/auto when adaptive or leetcode) */}
+          {source !== "adaptive" && source !== "leetcode" && (
             <div className="space-y-2">
               <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
                 Problem Category
@@ -496,29 +477,31 @@ export const SetupPage: React.FC<SetupPageProps> = ({
 
           {/* Difficulty & Style Grid */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                Difficulty
-              </label>
-              <select
-                value={difficulty}
-                disabled={source === "adaptive"}
-                onChange={(e) => setDifficulty(e.target.value as InterviewDifficulty)}
-                className="w-full bg-[#18181c] border border-[#27272a] rounded-md px-3 py-2 text-xs text-zinc-200 outline-none focus:border-indigo-500 transition-colors disabled:opacity-50"
-              >
-                {source === "adaptive" ? (
-                  <option value="adaptive">Adaptive (Calculated from Weaknesses)</option>
-                ) : (
-                  <>
-                    <option value="easy">Easy</option>
-                    <option value="medium">Medium</option>
-                    <option value="hard">Hard</option>
-                  </>
-                )}
-              </select>
-            </div>
+            {source !== "leetcode" && (
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                  Difficulty
+                </label>
+                <select
+                  value={difficulty}
+                  disabled={source === "adaptive"}
+                  onChange={(e) => setDifficulty(e.target.value as InterviewDifficulty)}
+                  className="w-full bg-[#18181c] border border-[#27272a] rounded-md px-3 py-2 text-xs text-zinc-200 outline-none focus:border-indigo-500 transition-colors disabled:opacity-50"
+                >
+                  {source === "adaptive" ? (
+                    <option value="adaptive">Adaptive (Calculated from Weaknesses)</option>
+                  ) : (
+                    <>
+                      <option value="easy">Easy</option>
+                      <option value="medium">Medium</option>
+                      <option value="hard">Hard</option>
+                    </>
+                  )}
+                </select>
+              </div>
+            )}
 
-            <div className="space-y-2">
+            <div className={`space-y-2 ${source === "leetcode" ? "col-span-2" : ""}`}>
               <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
                 Interview Style
               </label>
