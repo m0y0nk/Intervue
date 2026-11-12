@@ -31,6 +31,14 @@ class InterviewConfig(BaseModel):
 
 class SessionCreateRequest(BaseModel):
     config: InterviewConfig = Field(default_factory=InterviewConfig)
+    # ---- Source-specific extra inputs ----
+    # leetcode: pasted problem statement + optional ID
+    leetcode_id: Optional[str] = None
+    leetcode_statement: Optional[str] = None
+    # custom: user-supplied statement + optional URL + optional extra constraints
+    custom_statement: Optional[str] = None
+    custom_url: Optional[str] = None
+    custom_extra_constraints: Optional[str] = None
 
 
 class SessionState(BaseModel):

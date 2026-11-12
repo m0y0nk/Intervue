@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { api } from "./services/api";
-import { ChatMessage, FinalEvaluationReport, InterviewConfig, RunCodeResponse, SessionState } from "./types";
+import {
+  ChatMessage,
+  FinalEvaluationReport,
+  InterviewConfig,
+  RunCodeResponse,
+  SessionCreatePayload,
+  SessionState,
+} from "./types";
 import { SetupPage } from "./pages/SetupPage";
 import { WorkspacePage } from "./pages/WorkspacePage";
 import { EvaluationReport } from "./components/EvaluationReport";
@@ -70,7 +77,7 @@ export function App() {
           clearInterval(interval);
         } else if (state.status === "abandoned") {
           setIsGenerating(false);
-          setStatusMessage("Problem generation failed. Please try again.");
+          setStatusMessage(state.code ? `Generation failed: ${state.code}` : "Problem generation failed or unsupported. Please try again.");
           clearInterval(interval);
         }
       } catch (e) {
@@ -82,11 +89,11 @@ export function App() {
   }, [sessionId, isGenerating]);
 
   // Start new session
-  const handleStartSession = async (config: Partial<InterviewConfig>) => {
+  const handleStartSession = async (payload: SessionCreatePayload | Partial<InterviewConfig>) => {
     setIsGenerating(true);
     setStatusMessage("Validating problem in sandbox differential pipeline...");
     try {
-      const res = await api.createSession(config);
+      const res = await api.createSession(payload);
       setSessionId(res.session_id);
       localStorage.setItem("intervue_active_session", res.session_id);
     } catch (e: any) {

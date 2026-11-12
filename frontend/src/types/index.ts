@@ -29,6 +29,15 @@ export interface InterviewConfig {
   duration: number;
 }
 
+export interface SessionCreatePayload {
+  config: Partial<InterviewConfig>;
+  leetcode_id?: string;
+  leetcode_statement?: string;
+  custom_statement?: string;
+  custom_url?: string;
+  custom_extra_constraints?: string;
+}
+
 export interface ProblemExample {
   input_str: string;
   output_str: string;

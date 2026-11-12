@@ -37,7 +37,7 @@ from ..schemas.session import (
 from ..services.code_execution_service import code_execution_service
 from ..services.config_validator import ConfigValidationError, validate_interview_config
 from ..services.evaluation_service import evaluation_service
-from ..services.problem_generator import problem_generator
+from ..services.problem_generator import ProblemGenerationError, UnsupportedProblemError, problem_generator
 from ..services.timer_service import STAGE_NAMES, TimerService
 
 logger = logging.getLogger("api.sessions")
@@ -152,9 +152,18 @@ def _serialize_session_state(db: Session, session: SessionModel) -> SessionState
     )
 
 
-async def _async_generate_and_attach_problem(session_id: str):
+async def _async_generate_and_attach_problem(
+    session_id: str,
+    leetcode_id: Optional[str] = None,
+    leetcode_statement: Optional[str] = None,
+    custom_statement: Optional[str] = None,
+    custom_url: Optional[str] = None,
+    custom_extra_constraints: Optional[str] = None,
+):
     """Background task to generate problem, validate it, and mark session ready."""
     from ..database.session import SessionLocal
+    from ..services.problem_generator import UnsupportedProblemError, ProblemGenerationError
+
     db = SessionLocal()
     try:
         session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
@@ -172,7 +181,15 @@ async def _async_generate_and_attach_problem(session_id: str):
             duration=session.duration,
         )
 
-        problem_priv = await problem_generator.generate_problem(cfg)
+        problem_priv = await problem_generator.generate_problem(
+            cfg,
+            db=db,
+            leetcode_id=leetcode_id,
+            leetcode_statement=leetcode_statement,
+            custom_statement=custom_statement,
+            custom_url=custom_url,
+            custom_extra_constraints=custom_extra_constraints,
+        )
 
         # Ensure starter templates for all languages are present
         starter_templates = generate_starter_templates(problem_priv.signature)
@@ -197,6 +214,13 @@ async def _async_generate_and_attach_problem(session_id: str):
         db.commit()
         logger.info(f"Session {session_id} prepared with problem {problem_model.title}")
 
+    except (UnsupportedProblemError, ProblemGenerationError) as e:
+        logger.error(f"Problem generation failed for session {session_id}: {e}")
+        session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
+        if session:
+            session.status = "abandoned"
+            session.code = str(e)  # Store error for polling endpoint to surface
+            db.commit()
     except Exception as e:
         logger.exception(f"Failed to generate problem for session {session_id}")
         session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
@@ -213,6 +237,21 @@ async def create_session(
     db: Session = Depends(get_db),
 ):
     cfg = req.config
+
+    # Early validation: leetcode and custom need pasted statement
+    if cfg.source == "leetcode" and not req.leetcode_statement:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "LeetCode source requires a pasted problem statement. "
+                "LeetCode has no official public API — please paste the full statement text."
+            ),
+        )
+    if cfg.source == "custom" and not req.custom_statement:
+        raise HTTPException(
+            status_code=422,
+            detail="Custom source requires a problem statement.",
+        )
 
     # Validate configuration against Section 2 compatibility matrix
     try:
@@ -238,8 +277,17 @@ async def create_session(
     db.add(new_session)
     db.commit()
 
-    # Trigger async generation
-    asyncio.create_task(_async_generate_and_attach_problem(session_id))
+    # Trigger async generation (pass source-specific extras through)
+    asyncio.create_task(
+        _async_generate_and_attach_problem(
+            session_id,
+            leetcode_id=req.leetcode_id,
+            leetcode_statement=req.leetcode_statement,
+            custom_statement=req.custom_statement,
+            custom_url=req.custom_url,
+            custom_extra_constraints=req.custom_extra_constraints,
+        )
+    )
 
     return {"session_id": session_id, "status": "generating"}
 

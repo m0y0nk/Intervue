@@ -3,6 +3,7 @@ import {
   FinalEvaluationReport,
   InterviewConfig,
   RunCodeResponse,
+  SessionCreatePayload,
   SessionState,
   SubmitResponse,
 } from "../types";
@@ -10,11 +11,14 @@ import {
 const BASE_URL = "/api";
 
 export const api = {
-  async createSession(config: Partial<InterviewConfig>): Promise<{ session_id: string; status: string }> {
+  async createSession(
+    payload: SessionCreatePayload | Partial<InterviewConfig>
+  ): Promise<{ session_id: string; status: string }> {
+    const body = "config" in payload ? payload : { config: payload };
     const res = await fetch(`${BASE_URL}/sessions`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ config }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(await res.text());
     return res.json();
