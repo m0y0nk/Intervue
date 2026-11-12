@@ -175,7 +175,7 @@ export const SetupPage: React.FC<SetupPageProps> = ({
           difficulty,
           category,
           language,
-          framing: source === "ai_business" ? "business" : framing,
+          framing: source === "random_dsa" ? framing : "standard",
           duration: 1200,
         },
         leetcode_id: leetcodeId.trim() || undefined,
@@ -364,6 +364,45 @@ export const SetupPage: React.FC<SetupPageProps> = ({
               <p className="text-[11px] text-indigo-200/70 leading-relaxed">
                 Intervue analyzes your stored evaluation scores to identify your weakest categories and dimension gaps. Category and difficulty are chosen automatically. Requires at least 5 completed interview attempts.
               </p>
+            </div>
+          )}
+
+          {/* Random DSA Framing Option */}
+          {source === "random_dsa" && (
+            <div className="space-y-1.5 p-3 rounded-lg bg-[#18181c] border border-zinc-800">
+              <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400 block">
+                Problem Framing
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFraming("standard")}
+                  className={`flex items-start space-x-2 px-3 py-2 rounded-md border text-left text-xs transition-colors ${
+                    framing === "standard"
+                      ? "bg-indigo-950/80 border-indigo-700 text-indigo-200"
+                      : "bg-[#121215] border-[#27272a] text-zinc-400 hover:border-zinc-700 hover:text-zinc-300"
+                  }`}
+                >
+                  <div>
+                    <div className="font-semibold">Standard Algorithmic</div>
+                    <div className="text-[10px] text-zinc-500 mt-0.5">Classic DSA formulation</div>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFraming("business")}
+                  className={`flex items-start space-x-2 px-3 py-2 rounded-md border text-left text-xs transition-colors ${
+                    framing === "business"
+                      ? "bg-indigo-950/80 border-indigo-700 text-indigo-200"
+                      : "bg-[#121215] border-[#27272a] text-zinc-400 hover:border-zinc-700 hover:text-zinc-300"
+                  }`}
+                >
+                  <div>
+                    <div className="font-semibold">Business Framing</div>
+                    <div className="text-[10px] text-zinc-500 mt-0.5">Real-world domain disguise</div>
+                  </div>
+                </button>
+              </div>
             </div>
           )}
 

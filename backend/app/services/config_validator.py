@@ -41,8 +41,12 @@ def validate_interview_config(cfg: InterviewConfig, db: Session) -> None:
             raise ConfigValidationError("Topic mastery mode requires a specific category and cannot be used with 'mixed'.")
 
     # 3. Framing constraint (SPEC line 48)
-    if cfg.framing == "business" and cfg.source != "random_dsa":
-        raise ConfigValidationError("Business framing is only supported for source 'random_dsa'.")
+    if cfg.framing == "business":
+        if cfg.source == "ai_business":
+            # ai_business source is already inherently business-framed; normalize framing to standard
+            cfg.framing = "standard"
+        elif cfg.source != "random_dsa":
+            raise ConfigValidationError("Business framing is only supported for source 'random_dsa'.")
 
     # 4. Adaptive difficulty constraint (SPEC line 43)
     if cfg.difficulty == "adaptive" and cfg.source != "adaptive":
