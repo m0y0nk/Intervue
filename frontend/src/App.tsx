@@ -10,10 +10,11 @@ import {
 } from "./types";
 import { SetupPage } from "./pages/SetupPage";
 import { WorkspacePage } from "./pages/WorkspacePage";
+import { DashboardPage, RevisionCandidate } from "./pages/DashboardPage";
 import { EvaluationReport } from "./components/EvaluationReport";
 
 export function App() {
-  const [currentView, setCurrentView] = useState<"setup" | "workspace" | "report">("setup");
+  const [currentView, setCurrentView] = useState<"setup" | "dashboard" | "workspace" | "report">("setup");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [session, setSession] = useState<SessionState | null>(null);
   const [chatLog, setChatLog] = useState<ChatMessage[]>([]);
@@ -262,6 +263,19 @@ export function App() {
     setCurrentView("setup");
   };
 
+  // Start revision interview directly from Dashboard
+  const handleStartRevision = async (candidate: RevisionCandidate) => {
+    setCurrentView("setup");
+    await handleStartSession({
+      config: {
+        mode: "revision",
+        category: (candidate.category as any) || "arrays_hashing",
+        source: (candidate.source as any) || "random_dsa",
+        difficulty: (candidate.difficulty as any) || "medium",
+      },
+    });
+  };
+
   return (
     <div className="min-h-screen bg-[#09090b] text-zinc-100">
       {currentView === "setup" && (
@@ -269,6 +283,14 @@ export function App() {
           onStartSession={handleStartSession}
           isGenerating={isGenerating}
           statusMessage={statusMessage}
+          onViewDashboard={() => setCurrentView("dashboard")}
+        />
+      )}
+
+      {currentView === "dashboard" && (
+        <DashboardPage
+          onNewInterview={handleNewInterview}
+          onStartRevision={handleStartRevision}
         />
       )}
 
@@ -298,6 +320,7 @@ export function App() {
         <EvaluationReport
           report={finalReport}
           onNewInterview={handleNewInterview}
+          onViewDashboard={() => setCurrentView("dashboard")}
         />
       )}
     </div>

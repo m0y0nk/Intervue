@@ -1,76 +1,134 @@
 import json
-from typing import Any, Dict, List
-from fastapi import APIRouter, Depends
+import logging
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
+
 from ..database.session import get_db
 from ..models.database import EvaluationModel, SessionModel
+from ..services.gemini_service import gemini_service
+from ..services.stats_service import (
+    compute_dashboard_stats,
+    get_revision_candidates,
+    get_session_history,
+)
 
-router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
+logger = logging.getLogger("dashboard")
+
+router = APIRouter(tags=["dashboard"])
 
 
-@router.get("")
-def get_dashboard_metrics(db: Session = Depends(get_db)):
-    """Computes deterministic dashboard statistics strictly from stored records."""
-    sessions = (
-        db.query(SessionModel)
-        .filter(SessionModel.status == "finished")
-        .order_by(SessionModel.created_at.desc())
-        .all()
-    )
+# ---------------------------------------------------------------------------
+# GET /api/dashboard
+# ---------------------------------------------------------------------------
 
-    total_interviews = len(sessions)
-    if total_interviews == 0:
+
+@router.get("/api/dashboard")
+def get_dashboard(db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """
+    Returns all deterministic dashboard statistics.
+    Optionally appends a Gemini-written interpretation narrative
+    (Gemini never derives the numbers — only writes prose about them).
+    """
+    stats = compute_dashboard_stats(db)
+    return stats
+
+
+# ---------------------------------------------------------------------------
+# GET /api/dashboard/recommendations
+# ---------------------------------------------------------------------------
+
+
+@router.get("/api/dashboard/recommendations")
+async def get_recommendations(db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """
+    Calls Gemini with pre-computed stats and returns a text narrative.
+    Gemini receives only the aggregated numbers — never raw DB rows.
+    """
+    stats = compute_dashboard_stats(db)
+
+    if stats["total_interviews"] == 0:
         return {
-            "total_interviews": 0,
-            "average_score": 0.0,
-            "coding_accuracy": 0.0,
-            "category_performance": {},
-            "recent_sessions": [],
+            "recommendations": [
+                "Complete at least one interview to receive personalised recommendations."
+            ],
+            "narrative": "No interview history found. Start a session to get insights.",
         }
 
-    evals = db.query(EvaluationModel).all()
-    eval_map = {e.session_id: e for e in evals}
+    # Build a compact summary dict for Gemini (numbers only, no raw data)
+    summary = {
+        "total_interviews": stats["total_interviews"],
+        "average_score": stats["average_score"],
+        "coding_accuracy": stats["coding_accuracy"],
+        "average_algorithmic_score": stats["average_algorithmic_score"],
+        "average_implementation_score": stats["average_implementation_score"],
+        "strongest_dimensions": stats["strongest_dimensions"],
+        "weakest_dimensions": stats["weakest_dimensions"],
+        "verdict_distribution": stats["verdict_distribution"],
+        "category_performance": stats["category_performance"],
+    }
 
-    scores = []
-    coding_scores = []
-    category_scores: Dict[str, List[float]] = {}
-    recent = []
+    prompt = f"""You are a senior engineering interview coach reviewing a candidate's interview history dashboard.
 
-    for s in sessions:
-        ev = eval_map.get(s.id)
-        sc = ev.total_score if ev else 0.0
-        cs = ev.coding_score if ev else 0.0
-        scores.append(sc)
-        coding_scores.append(cs)
+Here are the candidate's computed performance statistics:
+{json.dumps(summary, indent=2)}
 
-        cat = s.category or "mixed"
-        category_scores.setdefault(cat, []).append(sc)
+Write a concise, honest, anti-slop coaching analysis (3-5 bullet points) covering:
+1. What the candidate is genuinely doing well
+2. The single biggest gap they must close to get hired
+3. One specific, actionable drill or technique they should practice this week
+4. Category or dimension they should focus on next
 
-        recent.append(
-            {
-                "session_id": s.id,
-                "problem_title": s.problem.title if s.problem else "Coding Interview",
-                "category": s.category,
-                "difficulty": s.difficulty,
-                "style": s.style,
-                "score": sc,
-                "verdict": ev.verdict if ev else "no_hire",
-                "created_at": s.created_at.isoformat() if s.created_at else None,
-            }
+Be direct, specific, and encouraging. No filler phrases.
+Return a JSON object: {{"recommendations": ["...", "...", "..."], "narrative": "2-3 sentence summary"}}"""
+
+    try:
+        from pydantic import BaseModel
+
+        class RecommendationResponse(BaseModel):
+            recommendations: List[str]
+            narrative: str
+
+        result = await gemini_service.generate_structured(
+            prompt=prompt,
+            response_schema=RecommendationResponse,
+            temperature=0.4,
         )
+        return result.model_dump()
+    except Exception as e:
+        logger.warning(f"Gemini recommendations failed: {e}")
+        return {
+            "recommendations": [
+                f"Average score {stats['average_score']}/10 — keep practising.",
+                "Focus on your weakest dimensions.",
+                "Aim for 3 interviews per week to build consistency.",
+            ],
+            "narrative": "Personalised recommendations temporarily unavailable.",
+        }
 
-    avg_score = round(sum(scores) / len(scores), 1) if scores else 0.0
-    avg_coding = round(sum(coding_scores) / len(coding_scores), 1) if coding_scores else 0.0
 
-    cat_perf = {
-        cat: round(sum(vals) / len(vals), 1)
-        for cat, vals in category_scores.items()
-    }
+# ---------------------------------------------------------------------------
+# GET /api/history
+# ---------------------------------------------------------------------------
 
-    return {
-        "total_interviews": total_interviews,
-        "average_score": avg_score,
-        "coding_accuracy": avg_coding,
-        "category_performance": cat_perf,
-        "recent_sessions": recent[:10],
-    }
+
+@router.get("/api/history")
+def get_history(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Paginated list of all finished sessions."""
+    return get_session_history(db, page=page, page_size=page_size)
+
+
+# ---------------------------------------------------------------------------
+# GET /api/revision/candidates
+# ---------------------------------------------------------------------------
+
+
+@router.get("/api/revision/candidates")
+def list_revision_candidates(db: Session = Depends(get_db)) -> List[Dict[str, Any]]:
+    """Sessions eligible for revision mode (finished, with a linked problem)."""
+    return get_revision_candidates(db)

@@ -15,6 +15,7 @@ import {
   Target,
   Code2,
   FileCode,
+  LayoutDashboard,
 } from "lucide-react";
 import {
   InterviewCategory,
@@ -30,6 +31,7 @@ interface SetupPageProps {
   onStartSession: (payload: SessionCreatePayload) => Promise<void>;
   isGenerating: boolean;
   statusMessage?: string;
+  onViewDashboard?: () => void;
 }
 
 const SOURCE_META: Record<
@@ -103,6 +105,7 @@ export const SetupPage: React.FC<SetupPageProps> = ({
   onStartSession,
   isGenerating,
   statusMessage,
+  onViewDashboard,
 }) => {
   const [source, setSource] = useState<InterviewSource>("random_dsa");
   const [category, setCategory] = useState<InterviewCategory>("arrays_hashing");
@@ -196,7 +199,19 @@ export const SetupPage: React.FC<SetupPageProps> = ({
     <div className="min-h-screen bg-[#09090b] text-zinc-100 flex items-center justify-center p-6">
       <div className="max-w-2xl w-full space-y-6">
         {/* Header */}
-        <div className="space-y-2 text-center">
+        <div className="space-y-2 text-center relative">
+          {onViewDashboard && (
+            <div className="absolute right-0 top-0">
+              <button
+                type="button"
+                onClick={onViewDashboard}
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs text-zinc-300 hover:text-zinc-100 transition-colors"
+              >
+                <LayoutDashboard className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Dashboard</span>
+              </button>
+            </div>
+          )}
           <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-xs font-mono text-zinc-400 mb-1">
             <Terminal className="w-3.5 h-3.5 text-indigo-400" />
             <span>Intervue AI Technical Simulator</span>

@@ -9,17 +9,20 @@ import {
   Minus,
   Sparkles,
   GitCompare,
+  LayoutDashboard,
 } from "lucide-react";
 import { FinalEvaluationReport } from "../types";
 
 interface EvaluationReportProps {
   report: FinalEvaluationReport;
   onNewInterview: () => void;
+  onViewDashboard?: () => void;
 }
 
 export const EvaluationReport: React.FC<EvaluationReportProps> = ({
   report,
   onNewInterview,
+  onViewDashboard,
 }) => {
   const getVerdictStyle = (v: string) => {
     switch (v) {
@@ -44,13 +47,24 @@ export const EvaluationReport: React.FC<EvaluationReportProps> = ({
           <h1 className="text-2xl font-bold tracking-tight">Interview Evaluation Report</h1>
           <p className="text-zinc-400 text-xs mt-1 font-mono">Session ID: {report.session_id}</p>
         </div>
-        <button
-          onClick={onNewInterview}
-          className="flex items-center space-x-2 px-4 py-2 rounded-md bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white transition-colors shadow-lg shadow-indigo-600/20"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          <span>New Interview</span>
-        </button>
+        <div className="flex items-center space-x-2">
+          {onViewDashboard && (
+            <button
+              onClick={onViewDashboard}
+              className="flex items-center space-x-2 px-3 py-2 rounded-md bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-zinc-200 transition-colors border border-zinc-700"
+            >
+              <LayoutDashboard className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Dashboard</span>
+            </button>
+          )}
+          <button
+            onClick={onNewInterview}
+            className="flex items-center space-x-2 px-4 py-2 rounded-md bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white transition-colors shadow-lg shadow-indigo-600/20"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>New Interview</span>
+          </button>
+        </div>
       </div>
 
       {/* Revision Comparison Card (if in revision mode) */}

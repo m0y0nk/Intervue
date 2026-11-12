@@ -131,4 +131,25 @@ export const api = {
     if (!res.ok) throw new Error(await res.text());
     return res.json();
   },
+
+  async getDashboardRecommendations(): Promise<{ recommendations: string[]; narrative: string }> {
+    const res = await fetch(`${BASE_URL}/dashboard/recommendations`);
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
+  async getHistory(
+    page: number = 1,
+    pageSize: number = 20
+  ): Promise<{ total: number; page: number; page_size: number; total_pages: number; items: any[] }> {
+    const res = await fetch(`${BASE_URL}/history?page=${page}&page_size=${pageSize}`);
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
+  async getRevisionCandidates(): Promise<any[]> {
+    const res = await fetch(`${BASE_URL}/revision/candidates`);
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
 };
