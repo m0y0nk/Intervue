@@ -118,7 +118,7 @@ Requirements:
 1. Function signature, clear statement with at least 3 examples, constraints.
 2. 100% working Python reference solution.
 3. Independent Python brute-force solution (simpler, possibly slower).
-4. Python input generator `generate_inputs(n)` returning a list of argument lists.
+4. Python input generator `generate_inputs(n=10)` returning a list of small argument lists (lengths <= 15) for fast differential testing.
 5. Hidden test cases (at least 4) covering edge cases.
 6. Rubric items aligned to the 6 interview stages.
 7. NEVER name the algorithm, data structure, or give away the solution approach.
@@ -147,7 +147,7 @@ Requirements:
 1. Function signature, clear business-story statement with at least 3 examples, constraints.
 2. 100% working Python reference solution.
 3. Independent Python brute-force solution.
-4. Python input generator `generate_inputs(n)` returning a list of argument lists.
+4. Python input generator `generate_inputs(n=10)` returning a list of small argument lists (lengths <= 15) for fast differential testing.
 5. Hidden test cases (at least 4).
 6. Rubric items aligned to the 6 interview stages.
 """
