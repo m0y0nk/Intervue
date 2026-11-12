@@ -59,6 +59,37 @@ class GeminiService:
             logger.warning(f"Gemini API call failed ({e}); falling back to mock response.")
             return self._mock_response(prompt, response_schema)
 
+    async def generate_free_text(
+        self,
+        prompt: str,
+        temperature: float = 0.4,
+        system_instruction: Optional[str] = None,
+    ) -> Optional[str]:
+        """
+        Generates unstructured free text from Gemini.
+        Returns None on failure (caller should handle gracefully).
+        Never raises — always returns str or None.
+        """
+        if not self.is_configured():
+            logger.info("Gemini not configured; skipping free-text generation.")
+            return None
+
+        try:
+            from google.genai import types
+            config = types.GenerateContentConfig(
+                temperature=temperature,
+                system_instruction=system_instruction,
+            )
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+                config=config,
+            )
+            return response.text.strip() if response.text else None
+        except Exception as e:
+            logger.warning(f"Gemini free-text call failed ({e}); returning None.")
+            return None
+
     def _mock_response(self, prompt: str, schema: Type[T]) -> T:
         """Produces realistic mock data satisfying Pydantic schema validation."""
         schema_name = schema.__name__

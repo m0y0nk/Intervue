@@ -97,15 +97,42 @@ Return a JSON object: {{"recommendations": ["...", "...", "..."], "narrative": "
         )
         return result.model_dump()
     except Exception as e:
-        logger.warning(f"Gemini recommendations failed: {e}")
-        return {
-            "recommendations": [
-                f"Average score {stats['average_score']}/10 — keep practising.",
-                "Focus on your weakest dimensions.",
-                "Aim for 3 interviews per week to build consistency.",
-            ],
-            "narrative": "Personalised recommendations temporarily unavailable.",
-        }
+        logger.warning(f"Gemini structured recommendations failed ({e}); trying free-text fallback.")
+
+    # Fallback: try free-text generation then parse JSON from it
+    try:
+        import re
+        raw_text = await gemini_service.generate_free_text(prompt=prompt, temperature=0.4)
+        if raw_text:
+            json_match = re.search(r'\{.*\}', raw_text, re.DOTALL)
+            if json_match:
+                parsed = json.loads(json_match.group())
+                if "recommendations" in parsed and "narrative" in parsed:
+                    return parsed
+    except Exception as e2:
+        logger.warning(f"Free-text fallback also failed ({e2}); using static fallback.")
+
+    # Final deterministic fallback — built from pre-computed stats, no Gemini
+    weakest = stats["weakest_dimensions"]
+    weakest_name = weakest[0]["name"] if weakest else "your weakest dimension"
+    worst_cat = min(stats["category_performance"].items(), key=lambda x: x[1], default=(None, 0))
+    worst_cat_name = worst_cat[0].replace("_", " ").title() if worst_cat[0] else "your lowest category"
+    strongest = stats["strongest_dimensions"]
+    strongest_name = strongest[0]["name"] if strongest else "your top dimension"
+    return {
+        "recommendations": [
+            f"Average score {stats['average_score']}/10 — aim for 7.5+ to reach 'hire' range consistently.",
+            f"Focus on '{weakest_name}' — your lowest-scoring dimension across all sessions.",
+            f"Practice '{worst_cat_name}' problems — your weakest category by average score.",
+            "Complete at least 3 interviews per week to build consistent interview stamina.",
+        ],
+        "narrative": (
+            f"Based on {stats['total_interviews']} interviews, your average score is "
+            f"{stats['average_score']}/10. "
+            f"Your strongest area is '{strongest_name}'. "
+            f"Keep drilling your weaker dimensions to close the gap."
+        ),
+    }
 
 
 # ---------------------------------------------------------------------------
