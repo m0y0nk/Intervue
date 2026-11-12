@@ -134,7 +134,7 @@ flowchart TD
 
     UI -->|REST / JSON| API
     CM -.->|Debounced Sync| API
-    TimerUI <-->|Sync Heartbeat (15s)| WallTimer
+    TimerUI <-->|Periodic 15s Sync| WallTimer
     API --> Engine
     Engine --> DB
     Engine --> Stats
@@ -189,10 +189,10 @@ flowchart LR
     C -->|Pass| D["Synthesize Brute-Force Solution"]
     C -->|Fail| R["Regenerate (Max 3 Retries)"]
     D --> E["Differential Fuzzing (N=200 Random Inputs)"]
-    E -->|Ref == Brute-Force| F["Complexity Limits & Large Input Guard"]
+    E -->|Match Verified| F["Complexity Limits & Large Input Guard"]
     E -->|Mismatch| R
     F -->|Pass| G["Compute Hidden Outputs & Finalize"]
-    F -->|Timeout / Error| R
+    F -->|Timeout or Error| R
 ```
 
 ---
