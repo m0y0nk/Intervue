@@ -1,7 +1,10 @@
+import os
 from contextlib import asynccontextmanager
 import logging
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from .api.dashboard import router as dashboard_router
 from .api.interview import router as interview_router
 from .api.leetcode import router as leetcode_router
@@ -54,3 +57,29 @@ def health():
         "gemini_model": settings.GEMINI_MODEL,
         "executor_url": settings.EXECUTOR_URL,
     }
+
+
+# Serve built frontend static files if present (for single-container deployment)
+static_candidates = [
+    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "frontend", "dist"),
+    "/app/static",
+    os.path.join(os.getcwd(), "frontend", "dist"),
+    os.path.join(os.getcwd(), "static"),
+]
+static_dir = next((d for d in static_candidates if os.path.isdir(d)), None)
+
+if static_dir and os.path.exists(os.path.join(static_dir, "index.html")):
+    logger.info(f"Serving built frontend from {static_dir}")
+    assets_dir = os.path.join(static_dir, "assets")
+    if os.path.isdir(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        if full_path.startswith("api/") or full_path == "api" or full_path == "health":
+            return Response(status_code=404)
+        file_path = os.path.join(static_dir, full_path)
+        if full_path and os.path.isfile(file_path):
+            return FileResponse(file_path)
+        return FileResponse(os.path.join(static_dir, "index.html"))
+
