@@ -260,13 +260,13 @@ async def create_session(
 ):
     cfg = req.config
 
-    # Early validation: leetcode and custom need pasted statement
-    if cfg.source == "leetcode" and not req.leetcode_statement:
+    # Early validation: leetcode requires either pasted statement or problem id/slug
+    if cfg.source == "leetcode" and not req.leetcode_statement and not req.leetcode_id:
         raise HTTPException(
             status_code=422,
             detail=(
-                "LeetCode source requires a pasted problem statement. "
-                "LeetCode has no official public API — please paste the full statement text."
+                "LeetCode source requires a problem number/slug (e.g. '42' or 'trapping-rain-water') "
+                "or a pasted problem statement."
             ),
         )
     if cfg.source == "custom" and not req.custom_statement:

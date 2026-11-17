@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .api.dashboard import router as dashboard_router
 from .api.interview import router as interview_router
+from .api.leetcode import router as leetcode_router
 from .api.sessions import router as sessions_router
 from .config import settings
 from .database.session import init_db
@@ -43,6 +44,7 @@ app.add_middleware(
 app.include_router(sessions_router)
 app.include_router(interview_router)
 app.include_router(dashboard_router)
+app.include_router(leetcode_router)
 
 
 @app.get("/health")

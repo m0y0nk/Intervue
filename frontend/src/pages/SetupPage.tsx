@@ -15,6 +15,8 @@ import {
   Code2,
   FileCode,
   LayoutDashboard,
+  Search,
+  CheckCircle2,
 } from "lucide-react";
 import {
   InterviewCategory,
@@ -112,6 +114,15 @@ export const SetupPage: React.FC<SetupPageProps> = ({
   // Source-specific inputs
   const [leetcodeId, setLeetcodeId] = useState("");
   const [leetcodeStatement, setLeetcodeStatement] = useState("");
+  const [isFetchingLeetcode, setIsFetchingLeetcode] = useState(false);
+  const [leetcodeFetchError, setLeetcodeFetchError] = useState<string | null>(null);
+  const [fetchedMeta, setFetchedMeta] = useState<{
+    id: string;
+    title: string;
+    difficulty: string;
+    tags: string[];
+  } | null>(null);
+
   const [customStatement, setCustomStatement] = useState("");
   const [customUrl, setCustomUrl] = useState("");
   const [customConstraints, setCustomConstraints] = useState("");
@@ -131,6 +142,7 @@ export const SetupPage: React.FC<SetupPageProps> = ({
   const handleSourceChange = (newSource: InterviewSource) => {
     setSource(newSource);
     setValidationError(null);
+    setLeetcodeFetchError(null);
     if (newSource !== "random_dsa" && newSource !== "leetcode" && framing === "business") {
       setFraming("standard");
     }
@@ -138,6 +150,36 @@ export const SetupPage: React.FC<SetupPageProps> = ({
       setDifficulty("adaptive");
     } else if (difficulty === "adaptive") {
       setDifficulty("medium");
+    }
+  };
+
+  const handleFetchLeetcode = async () => {
+    const query = leetcodeId.trim();
+    if (!query) {
+      setLeetcodeFetchError("Please enter a problem number (e.g. 42) or title slug (e.g. trapping-rain-water).");
+      return;
+    }
+    setIsFetchingLeetcode(true);
+    setLeetcodeFetchError(null);
+    try {
+      const res = await fetch(`/api/leetcode/problem/${encodeURIComponent(query)}`);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || `LeetCode problem '${query}' not found.`);
+      }
+      const data = await res.json();
+      setLeetcodeStatement(data.content);
+      setFetchedMeta({
+        id: data.id,
+        title: data.title,
+        difficulty: data.difficulty,
+        tags: data.topic_tags || [],
+      });
+    } catch (err: any) {
+      setLeetcodeFetchError(err.message || "Failed to fetch problem from LeetCode.");
+      setFetchedMeta(null);
+    } finally {
+      setIsFetchingLeetcode(false);
     }
   };
 
@@ -150,8 +192,8 @@ export const SetupPage: React.FC<SetupPageProps> = ({
       return;
     }
 
-    if (source === "leetcode" && (!leetcodeStatement || leetcodeStatement.trim().length < 30)) {
-      setValidationError("Please paste the full LeetCode problem statement (statement, examples, and constraints).");
+    if (source === "leetcode" && (!leetcodeStatement || leetcodeStatement.trim().length < 30) && !leetcodeId.trim()) {
+      setValidationError("Please enter a LeetCode problem number/slug or paste the problem statement.");
       return;
     }
 
@@ -274,27 +316,104 @@ export const SetupPage: React.FC<SetupPageProps> = ({
                   <Code2 className="w-3.5 h-3.5 text-amber-400" />
                   <span>LeetCode Problem Details</span>
                 </span>
-                <span className="text-[10px] text-zinc-500">No public API; paste verbatim</span>
+                <span className="text-[10px] text-zinc-500">Query by # or paste verbatim</span>
               </div>
-              <div>
-                <label className="text-[11px] text-zinc-400 mb-1 block">Problem # / ID (optional)</label>
-                <input
-                  type="text"
-                  value={leetcodeId}
-                  onChange={(e) => setLeetcodeId(e.target.value)}
-                  placeholder="e.g. 42 or trapping-rain-water"
-                  className="w-full bg-[#121215] border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-indigo-500"
-                />
-              </div>
+
               <div>
                 <label className="text-[11px] text-zinc-400 mb-1 block">
-                  Pasted Statement, Examples &amp; Constraints <span className="text-red-400">*</span>
+                  Problem Number or Title Slug (e.g. 42, two-sum)
+                </label>
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    value={leetcodeId}
+                    onChange={(e) => {
+                      setLeetcodeId(e.target.value);
+                      if (leetcodeFetchError) setLeetcodeFetchError(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleFetchLeetcode();
+                      }
+                    }}
+                    placeholder="e.g. 42 or trapping-rain-water"
+                    className="flex-1 bg-[#121215] border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-indigo-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleFetchLeetcode}
+                    disabled={isFetchingLeetcode || !leetcodeId.trim()}
+                    className="px-3 py-1.5 rounded bg-indigo-600/90 hover:bg-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-medium flex items-center space-x-1.5 transition-colors shrink-0"
+                  >
+                    {isFetchingLeetcode ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Querying...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Search className="w-3.5 h-3.5" />
+                        <span>Fetch Problem</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                {leetcodeFetchError && (
+                  <p className="text-[11px] text-red-400 mt-1.5 flex items-center space-x-1">
+                    <AlertCircle className="w-3 h-3 shrink-0" />
+                    <span>{leetcodeFetchError}</span>
+                  </p>
+                )}
+              </div>
+
+              {/* Fetched Problem Badge */}
+              {fetchedMeta && (
+                <div className="p-2.5 rounded bg-emerald-950/40 border border-emerald-800/60 flex items-start space-x-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 mt-0.5 shrink-0" />
+                  <div className="text-xs">
+                    <div className="font-semibold text-emerald-200 flex items-center space-x-2">
+                      <span>#{fetchedMeta.id} {fetchedMeta.title}</span>
+                      <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-emerald-900/80 text-emerald-300 border border-emerald-700/60">
+                        {fetchedMeta.difficulty}
+                      </span>
+                    </div>
+                    {fetchedMeta.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {fetchedMeta.tags.slice(0, 4).map((tag) => (
+                          <span key={tag} className="text-[9px] px-1 py-0.5 rounded bg-zinc-800/80 text-zinc-400">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="text-[11px] text-zinc-400 mb-1 flex items-center justify-between">
+                  <span>
+                    Problem Statement &amp; Constraints <span className="text-zinc-500 font-normal">(auto-populated or paste manually)</span>
+                  </span>
+                  {leetcodeStatement && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLeetcodeStatement("");
+                        setFetchedMeta(null);
+                      }}
+                      className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
+                    >
+                      Clear
+                    </button>
+                  )}
                 </label>
                 <textarea
                   rows={4}
                   value={leetcodeStatement}
                   onChange={(e) => setLeetcodeStatement(e.target.value)}
-                  placeholder="Paste the problem description, example inputs/outputs, and constraints from LeetCode..."
+                  placeholder="Paste problem description, examples, and constraints or fetch by # above..."
                   className="w-full bg-[#121215] border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-indigo-500 font-mono resize-y"
                 />
               </div>

@@ -87,17 +87,17 @@ async def test_leetcode_paste_source():
         language="python",
     )
 
-    # Empty statement must fail
-    with pytest.raises(ProblemGenerationError, match="requires a pasted problem statement"):
-        await problem_generator.generate_problem(cfg, leetcode_statement="")
+    # Empty statement and no ID must fail
+    with pytest.raises(ProblemGenerationError, match="requires either a problem number/slug or a pasted problem statement"):
+        await problem_generator.generate_problem(cfg, leetcode_statement="", leetcode_id="")
 
-    # API validation: 422 if statement missing
+    # API validation: 422 if statement and ID missing
     resp = client.post(
         "/api/sessions",
-        json={"config": cfg.model_dump(), "leetcode_statement": ""},
+        json={"config": cfg.model_dump(), "leetcode_statement": "", "leetcode_id": ""},
     )
     assert resp.status_code == 422
-    assert "requires a pasted problem statement" in resp.json()["detail"]
+    assert "requires a problem number/slug" in resp.json()["detail"]
 
     # Valid paste
     sample_statement = """

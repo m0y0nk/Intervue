@@ -209,14 +209,34 @@ Requirements:
         leetcode_id: Optional[str],
         statement: Optional[str],
     ) -> ProblemPrivate:
+        fetched_data = None
         if not statement or len(statement.strip()) < 50:
-            raise ProblemGenerationError(
-                "LeetCode source requires a pasted problem statement "
-                "(at least 50 characters). "
-                "LeetCode has no official public API; please paste the full statement."
-            )
+            if leetcode_id and leetcode_id.strip():
+                from .leetcode_service import leetcode_service
+                logger.info(f"Auto-fetching LeetCode problem '{leetcode_id.strip()}' via GraphQL...")
+                fetched_data = await leetcode_service.fetch_problem(leetcode_id.strip())
+                if fetched_data and fetched_data.get("content"):
+                    statement = fetched_data["content"]
+                    logger.info(
+                        f"Successfully fetched LeetCode #{fetched_data.get('id')}: '{fetched_data.get('title')}' "
+                        f"({fetched_data.get('difficulty')})"
+                    )
+                else:
+                    raise ProblemGenerationError(
+                        f"Could not fetch LeetCode problem '{leetcode_id}'. "
+                        "Please verify the problem number/slug or paste the statement manually."
+                    )
+            else:
+                raise ProblemGenerationError(
+                    "LeetCode source requires either a problem number/slug or a pasted problem statement "
+                    "(at least 50 characters)."
+                )
 
-        id_note = f"The user says this is LeetCode problem #{leetcode_id}. " if leetcode_id else ""
+        id_note = (
+            f"The user says this is LeetCode problem #{leetcode_id} ('{fetched_data.get('title')}'). "
+            if (fetched_data and fetched_data.get("title"))
+            else (f"The user says this is LeetCode problem #{leetcode_id}. " if leetcode_id else "")
+        )
 
         if config.framing == "business":
             framing_instructions = """
