@@ -283,7 +283,24 @@ def main():
         f.write(code_to_write)
 
     import re
-    is_void = bool(re.search(r'\bvoid\s+' + re.escape(function_name) + r'\s*\(', code))
+    # Resolve actual method name in Solution
+    resolved_fn = function_name
+    if not re.search(r'\b' + re.escape(function_name) + r'\s*\(', code):
+        parts = function_name.split("_")
+        camel_name = parts[0] + "".join(p.capitalize() for p in parts[1:])
+        snake_name = re.sub(r'(?<!^)(?=[A-Z])', '_', function_name).lower()
+        if re.search(r'\b' + re.escape(camel_name) + r'\s*\(', code):
+            resolved_fn = camel_name
+        elif re.search(r'\b' + re.escape(snake_name) + r'\s*\(', code):
+            resolved_fn = snake_name
+        else:
+            methods = re.findall(r'public\s+(?:static\s+)?(?:[\w<>\[\]]+)\s+(\w+)\s*\(', code)
+            for m_name in methods:
+                if m_name not in ("main", "Solution"):
+                    resolved_fn = m_name
+                    break
+
+    is_void = bool(re.search(r'\bvoid\s+' + re.escape(resolved_fn) + r'\s*\(', code))
 
     # Build TestRunner main invocations
     invocations = []
@@ -304,7 +321,7 @@ def main():
         if is_void and var_names:
             call_block = f"""
             long t0 = System.nanoTime();
-            sol.{function_name}({args_str});
+            sol.{resolved_fn}({args_str});
             long t1 = System.nanoTime();
             double ms = (t1 - t0) / 1000000.0;
             System.out.println("TEST_RES:{idx}:" + ms + ":" + serialize({var_names[0]}));
@@ -312,7 +329,7 @@ def main():
         else:
             call_block = f"""
             long t0 = System.nanoTime();
-            var out{idx} = sol.{function_name}({args_str});
+            var out{idx} = sol.{resolved_fn}({args_str});
             long t1 = System.nanoTime();
             double ms = (t1 - t0) / 1000000.0;
             System.out.println("TEST_RES:{idx}:" + ms + ":" + serialize(out{idx}));

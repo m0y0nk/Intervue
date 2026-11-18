@@ -24,6 +24,7 @@ from ..schemas.problem import (
     ProblemPublic,
     ProblemPublicBlind,
     generate_starter_templates,
+    reconcile_signature_with_tests,
 )
 from ..schemas.session import (
     CodeUpdateRequest,
@@ -56,8 +57,9 @@ def _build_public_problem(
     # From Stage 3 onwards, constraints are revealed!
     constraints_to_show = priv.revealed_constraints if stage >= 3 else []
 
-    # Ensure all language starter templates are present
-    starter_templates = generate_starter_templates(priv.signature)
+    # Ensure all language starter templates are present and reconciled with tests
+    priv.signature = reconcile_signature_with_tests(priv.signature, priv.visible_tests)
+    starter_templates = generate_starter_templates(priv.signature, priv.visible_tests)
     starter_templates.update(priv.starter_code or {})
     priv.starter_code = starter_templates
 
@@ -196,7 +198,8 @@ async def _async_generate_and_attach_problem(
                 problem_priv = ProblemPrivate.model_validate(json.loads(problem_model.private_data))
                 session.problem_id = problem_model.id
                 session.status = "ready"
-                starter_templates = generate_starter_templates(problem_priv.signature)
+                problem_priv.signature = reconcile_signature_with_tests(problem_priv.signature, problem_priv.visible_tests)
+                starter_templates = generate_starter_templates(problem_priv.signature, problem_priv.visible_tests)
                 starter_templates.update(problem_priv.starter_code or {})
                 session.code = starter_templates.get(session.language, "")
                 db.commit()
@@ -214,7 +217,8 @@ async def _async_generate_and_attach_problem(
         )
 
         # Ensure starter templates for all languages are present
-        starter_templates = generate_starter_templates(problem_priv.signature)
+        problem_priv.signature = reconcile_signature_with_tests(problem_priv.signature, problem_priv.visible_tests)
+        starter_templates = generate_starter_templates(problem_priv.signature, problem_priv.visible_tests)
         starter_templates.update(problem_priv.starter_code or {})
         problem_priv.starter_code = starter_templates
 
@@ -450,12 +454,14 @@ async def run_code(session_id: str, db: Session = Depends(get_db)):
     ]
     fn_name = problem_priv.signature.function_name
 
+    type_hints = [a.type for a in problem_priv.signature.args]
     run_res = await code_execution_service.execute(
         code=session.code or "",
         function_name=fn_name,
         tests=visible_tests,
         language=session.language,
         checker=problem_priv.checker,
+        type_hints=type_hints,
         timeout_seconds=5.0,
     )
 
@@ -493,12 +499,14 @@ async def submit_solution(session_id: str, db: Session = Depends(get_db)):
     ]
     fn_name = problem_priv.signature.function_name
 
+    type_hints = [a.type for a in problem_priv.signature.args]
     run_res = await code_execution_service.execute(
         code=session.code or "",
         function_name=fn_name,
         tests=hidden_tests,
         language=session.language,
         checker=problem_priv.checker,
+        type_hints=type_hints,
         timeout_seconds=5.0,
     )
 

@@ -1,10 +1,11 @@
-from typing import Any, Dict, List, Optional
+import re
+from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, Field
 
 
 class FunctionArg(BaseModel):
     name: str
-    type: str  # int, long, double, bool, string, int[], int[][], string[], ListNode, TreeNode
+    type: str  # int, long, double, bool, string, char, int[], int[][], string[], string[][], char[], ListNode, TreeNode, void
 
 
 class FunctionSignature(BaseModel):
@@ -13,24 +14,231 @@ class FunctionSignature(BaseModel):
     return_type: str
 
 
-def generate_starter_templates(sig: FunctionSignature) -> Dict[str, str]:
+def normalize_type(raw_type: str) -> str:
+    """
+    Normalizes any type string (from Gemini, LeetCode, Java, Python, C++, etc.)
+    into a canonical DSA type representation:
+    - Primitives: int, long, double, bool, string, char, void
+    - Arrays: int[], int[][], string[], string[][], double[], bool[], char[]
+    - Trees/Lists: ListNode, TreeNode
+    """
+    if not raw_type:
+        return "void"
+    t = str(raw_type).strip()
+
+    # Clean wrapper noise (Optional[...], std::..., &)
+    if t.startswith("Optional[") and t.endswith("]"):
+        t = t[9:-1].strip()
+    if t.startswith("std::"):
+        t = t[5:].strip()
+    if t.endswith("&"):
+        t = t[:-1].strip()
+
+    t_lower = t.lower().replace(" ", "")
+
+    # Void/None
+    if t_lower in ("void", "none", "null", "nonetype", "empty", "()"):
+        return "void"
+
+    # 2D arrays / Nested lists
+    if (
+        re.search(r'(?:list|vector|array)[<\[]\s*(?:list|vector|array)[<\[]\s*(?:int|integer)[>\]]\s*[>\]]', t_lower)
+        or t_lower in ("int[][]", "integer[][]", "vector<vector<int>>")
+    ):
+        return "int[][]"
+    if (
+        re.search(r'(?:list|vector|array)[<\[]\s*(?:list|vector|array)[<\[]\s*(?:str|string)[>\]]\s*[>\]]', t_lower)
+        or t_lower in ("string[][]", "str[][]", "vector<vector<string>>")
+    ):
+        return "string[][]"
+
+    # 1D arrays / Lists
+    if (
+        re.search(r'(?:list|vector|array)[<\[]\s*(?:int|integer)[>\]]', t_lower)
+        or t_lower in ("int[]", "integer[]", "int*", "array[int]", "vector<int>")
+    ):
+        return "int[]"
+    if (
+        re.search(r'(?:list|vector|array)[<\[]\s*(?:str|string)[>\]]', t_lower)
+        or t_lower in ("string[]", "str[]", "string*", "array[string]", "vector<string>")
+    ):
+        return "string[]"
+    if (
+        re.search(r'(?:list|vector|array)[<\[]\s*(?:float|double)[>\]]', t_lower)
+        or t_lower in ("double[]", "float[]", "vector<double>")
+    ):
+        return "double[]"
+    if (
+        re.search(r'(?:list|vector|array)[<\[]\s*(?:bool|boolean)[>\]]', t_lower)
+        or t_lower in ("bool[]", "boolean[]", "vector<bool>")
+    ):
+        return "bool[]"
+    if (
+        re.search(r'(?:list|vector|array)[<\[]\s*(?:char|character)[>\]]', t_lower)
+        or t_lower in ("char[]", "character[]", "vector<char>")
+    ):
+        return "char[]"
+
+    # Custom data structures
+    if "listnode" in t_lower:
+        return "ListNode"
+    if "treenode" in t_lower:
+        return "TreeNode"
+
+    # Base primitives
+    if t_lower in ("int", "integer", "int32"):
+        return "int"
+    if t_lower in ("long", "longlong", "int64"):
+        return "long"
+    if t_lower in ("double", "float", "float32", "float64"):
+        return "double"
+    if t_lower in ("bool", "boolean"):
+        return "bool"
+    if t_lower in ("str", "string"):
+        return "string"
+    if t_lower in ("char", "character"):
+        return "char"
+
+    # Array bracket notation
+    if t.endswith("[]"):
+        inner = normalize_type(t[:-2])
+        return f"{inner}[]"
+
+    # Generic List/vector fallback: list<T> -> T[]
+    m = re.match(r'(?:list|vector|array)[<\[](.+)[>\]]$', t_lower)
+    if m:
+        inner = normalize_type(m.group(1))
+        return f"{inner}[]"
+
+    return t
+
+
+def infer_type_from_value(val: Any) -> str:
+    """Infers canonical DSA type representation directly from concrete JSON test values."""
+    if val is None:
+        return "void"
+    if isinstance(val, bool):
+        return "bool"
+    if isinstance(val, int):
+        return "int"
+    if isinstance(val, float):
+        return "double"
+    if isinstance(val, str):
+        if len(val) == 1:
+            return "string"
+        return "string"
+    if isinstance(val, list):
+        if not val:
+            return "int[]"
+        first = val[0]
+        if isinstance(first, list):
+            if first and isinstance(first[0], str):
+                return "string[][]"
+            return "int[][]"
+        if isinstance(first, str):
+            return "string[]"
+        if isinstance(first, bool):
+            return "bool[]"
+        if isinstance(first, float):
+            return "double[]"
+        return "int[]"
+    if isinstance(val, dict):
+        if "val" in val:
+            if "next" in val:
+                return "ListNode"
+            if "left" in val or "right" in val:
+                return "TreeNode"
+    return "int"
+
+
+def reconcile_signature_with_tests(sig: FunctionSignature, tests: Optional[List[Any]] = None) -> FunctionSignature:
+    """
+    Validates and strengthens FunctionSignature against concrete test cases.
+    If Gemini generated placeholder/wrong types (like Object, Any, or void when expected is returned),
+    this reconciles them against actual test inputs and expected outputs.
+    """
+    norm_ret = normalize_type(sig.return_type)
+    norm_args = [FunctionArg(name=a.name, type=normalize_type(a.type)) for a in sig.args]
+
+    if not tests:
+        return FunctionSignature(function_name=sig.function_name, args=norm_args, return_type=norm_ret)
+
+    sample_test = tests[0]
+    expected_val = (
+        sample_test.get("expected")
+        if isinstance(sample_test, dict)
+        else getattr(sample_test, "expected", None)
+    )
+    args_val = (
+        sample_test.get("args")
+        if isinstance(sample_test, dict)
+        else getattr(sample_test, "args", [])
+    )
+
+    # 1. Reconcile return type
+    if expected_val is not None:
+        inferred_ret = infer_type_from_value(expected_val)
+        # If model generated void, Object, Any, or a scalar when a list was expected
+        if (
+            norm_ret in ("void", "Object", "Any", "unknown", "")
+            or (norm_ret in ("int", "string", "bool", "double") and isinstance(expected_val, list))
+        ):
+            norm_ret = inferred_ret
+    elif norm_ret in ("Object", "Any", "unknown", ""):
+        norm_ret = "void"
+
+    # 2. Reconcile argument types
+    if isinstance(args_val, list) and len(args_val) == len(norm_args):
+        for i, a_val in enumerate(args_val):
+            inferred_arg = infer_type_from_value(a_val)
+            if (
+                norm_args[i].type in ("Object", "Any", "unknown", "void", "")
+                or norm_args[i].type == norm_args[i].name
+                or (norm_args[i].type in ("int", "string", "bool", "double") and isinstance(a_val, list))
+            ):
+                norm_args[i].type = inferred_arg
+
+    return FunctionSignature(function_name=sig.function_name, args=norm_args, return_type=norm_ret)
+
+
+def to_camel_case(s: str) -> str:
+    """Converts snake_case to camelCase for Java/C++ method names."""
+    if not s or "_" not in s:
+        return s
+    parts = s.split("_")
+    return parts[0] + "".join(p.capitalize() for p in parts[1:])
+
+
+def generate_starter_templates(sig: FunctionSignature, tests: Optional[List[Any]] = None) -> Dict[str, str]:
+    if tests:
+        sig = reconcile_signature_with_tests(sig, tests)
+    else:
+        sig = FunctionSignature(
+            function_name=sig.function_name,
+            args=[FunctionArg(name=a.name, type=normalize_type(a.type)) for a in sig.args],
+            return_type=normalize_type(sig.return_type),
+        )
+
     fn_name = sig.function_name
+    fn_name_java = to_camel_case(fn_name)
     raw_args = sig.args
-    ret_type = sig.return_type.strip()
+    ret_type = sig.return_type
 
     # 1. Python mapping
     py_type_map = {
         "int": "int",
         "long": "int",
         "double": "float",
-        "float": "float",
         "bool": "bool",
-        "boolean": "bool",
         "string": "str",
-        "str": "str",
+        "char": "str",
         "int[]": "list[int]",
         "int[][]": "list[list[int]]",
         "string[]": "list[str]",
+        "string[][]": "list[list[str]]",
+        "double[]": "list[float]",
+        "bool[]": "list[bool]",
+        "char[]": "list[str]",
         "ListNode": "Optional[ListNode]",
         "TreeNode": "Optional[TreeNode]",
         "void": "None",
@@ -38,7 +246,7 @@ def generate_starter_templates(sig: FunctionSignature) -> Dict[str, str]:
     py_args = [f"{a.name}: {py_type_map.get(a.type, 'Any')}" for a in raw_args]
     py_args_str = ", ".join(py_args)
     py_ret = py_type_map.get(ret_type, "Any")
-    
+
     python_template = f'''# Definition for singly-linked list:
 # class ListNode:
 #     def __init__(self, val=0, next=None):
@@ -62,14 +270,16 @@ def {fn_name}({py_args_str}) -> {py_ret}:
         "int": "int",
         "long": "long",
         "double": "double",
-        "float": "double",
         "bool": "boolean",
-        "boolean": "boolean",
         "string": "String",
-        "str": "String",
+        "char": "char",
         "int[]": "int[]",
         "int[][]": "int[][]",
         "string[]": "String[]",
+        "string[][]": "String[][]",
+        "double[]": "double[]",
+        "bool[]": "boolean[]",
+        "char[]": "char[]",
         "ListNode": "ListNode",
         "TreeNode": "TreeNode",
         "void": "void",
@@ -81,16 +291,35 @@ def {fn_name}({py_args_str}) -> {py_ret}:
         "double": "return 0.0;",
         "boolean": "return false;",
         "String": 'return "";',
+        "char": "return ' ';",
         "int[]": "return new int[]{};",
         "int[][]": "return new int[][]{};",
         "String[]": "return new String[]{};",
+        "String[][]": "return new String[][]{};",
+        "double[]": "return new double[]{};",
+        "boolean[]": "return new boolean[]{};",
+        "char[]": "return new char[]{};",
         "ListNode": "return null;",
         "TreeNode": "return null;",
     }
-    java_ret = java_type_map.get(ret_type, "void")
-    java_args = [f"{java_type_map.get(a.type, 'Object')} {a.name}" for a in raw_args]
+
+    # Determine java return type
+    java_ret = java_type_map.get(ret_type)
+    if not java_ret:
+        if ret_type.endswith("[]"):
+            java_ret = ret_type
+            java_ret_stmt = f"return new {ret_type[:-2]}[]{{}};"
+        elif ret_type == "void":
+            java_ret = "void"
+            java_ret_stmt = "// In-place modification, no return needed"
+        else:
+            java_ret = ret_type
+            java_ret_stmt = "return null;"
+    else:
+        java_ret_stmt = java_default_ret.get(java_ret, "return null;")
+
+    java_args = [f"{java_type_map.get(a.type, a.type)} {a.name}" for a in raw_args]
     java_args_str = ", ".join(java_args)
-    java_ret_stmt = java_default_ret.get(java_ret, "return null;")
 
     java_template = f'''import java.util.*;
 
@@ -119,7 +348,7 @@ def {fn_name}({py_args_str}) -> {py_ret}:
  * }}
  */
 public class Solution {{
-    public {java_ret} {fn_name}({java_args_str}) {{
+    public {java_ret} {fn_name_java}({java_args_str}) {{
         // Write your solution here
         {java_ret_stmt}
     }}
@@ -131,14 +360,16 @@ public class Solution {{
         "int": "int",
         "long": "long long",
         "double": "double",
-        "float": "double",
         "bool": "bool",
-        "boolean": "bool",
         "string": "std::string",
-        "str": "std::string",
+        "char": "char",
         "int[]": "std::vector<int>&",
         "int[][]": "std::vector<std::vector<int>>&",
         "string[]": "std::vector<std::string>&",
+        "string[][]": "std::vector<std::vector<std::string>>&",
+        "double[]": "std::vector<double>&",
+        "bool[]": "std::vector<bool>&",
+        "char[]": "std::vector<char>&",
         "ListNode": "ListNode*",
         "TreeNode": "TreeNode*",
         "void": "void",
@@ -147,14 +378,16 @@ public class Solution {{
         "int": "int",
         "long": "long long",
         "double": "double",
-        "float": "double",
         "bool": "bool",
-        "boolean": "bool",
         "string": "std::string",
-        "str": "std::string",
+        "char": "char",
         "int[]": "std::vector<int>",
         "int[][]": "std::vector<std::vector<int>>",
         "string[]": "std::vector<std::string>",
+        "string[][]": "std::vector<std::vector<std::string>>",
+        "double[]": "std::vector<double>",
+        "bool[]": "std::vector<bool>",
+        "char[]": "std::vector<char>",
         "ListNode": "ListNode*",
         "TreeNode": "TreeNode*",
         "void": "void",
@@ -162,18 +395,23 @@ public class Solution {{
     cpp_default_ret = {
         "void": "// In-place modification, no return needed",
         "int": "return 0;",
-        "long long": "return 0;",
+        "long long": "return 0LL;",
         "double": "return 0.0;",
         "bool": "return false;",
         "std::string": 'return "";',
+        "char": "return ' ';",
         "std::vector<int>": "return {};",
         "std::vector<std::vector<int>>": "return {};",
         "std::vector<std::string>": "return {};",
+        "std::vector<std::vector<std::string>>": "return {};",
+        "std::vector<double>": "return {};",
+        "std::vector<bool>": "return {};",
+        "std::vector<char>": "return {};",
         "ListNode*": "return nullptr;",
         "TreeNode*": "return nullptr;",
     }
-    cpp_ret = cpp_ret_type_map.get(ret_type, "void")
-    cpp_args = [f"{cpp_type_map.get(a.type, 'auto')} {a.name}" for a in raw_args]
+    cpp_ret = cpp_ret_type_map.get(ret_type, "void" if ret_type == "void" else "auto")
+    cpp_args = [f"{cpp_type_map.get(a.type, a.type)} {a.name}" for a in raw_args]
     cpp_args_str = ", ".join(cpp_args)
     cpp_ret_stmt = cpp_default_ret.get(cpp_ret, "return {};")
 
@@ -207,7 +445,7 @@ public class Solution {{
  */
 class Solution {{
 public:
-    {cpp_ret} {fn_name}({cpp_args_str}) {{
+    {cpp_ret} {fn_name_java}({cpp_args_str}) {{
         // Write your solution here
         {cpp_ret_stmt}
     }}

@@ -299,7 +299,24 @@ def main():
         code_to_write = code
 
     import re
-    is_void = bool(re.search(r'\bvoid\s+' + re.escape(function_name) + r'\s*\(', code))
+    # Resolve actual method name in Solution
+    resolved_fn = function_name
+    if not re.search(r'\b' + re.escape(function_name) + r'\s*\(', code):
+        parts = function_name.split("_")
+        camel_name = parts[0] + "".join(p.capitalize() for p in parts[1:])
+        snake_name = re.sub(r'(?<!^)(?=[A-Z])', '_', function_name).lower()
+        if re.search(r'\b' + re.escape(camel_name) + r'\s*\(', code):
+            resolved_fn = camel_name
+        elif re.search(r'\b' + re.escape(snake_name) + r'\s*\(', code):
+            resolved_fn = snake_name
+        else:
+            methods = re.findall(r'(?:[\w:<>]+)\s+(\w+)\s*\(', code)
+            for m_name in methods:
+                if m_name not in ("main", "Solution", "if", "for", "while", "switch"):
+                    resolved_fn = m_name
+                    break
+
+    is_void = bool(re.search(r'\bvoid\s+' + re.escape(resolved_fn) + r'\s*\(', code))
 
     # Build test invocations
     invocations = []
@@ -324,7 +341,7 @@ def main():
         if is_void:
             call_block = f"""
         auto t0 = std::chrono::high_resolution_clock::now();
-        sol.{function_name}({args_str});
+        sol.{resolved_fn}({args_str});
         auto t1 = std::chrono::high_resolution_clock::now();
         double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
         std::cout << "TEST_RES:{idx}:" << ms << ":" << {out_target} << std::endl;
@@ -332,7 +349,7 @@ def main():
         else:
             call_block = f"""
         auto t0 = std::chrono::high_resolution_clock::now();
-        auto out{idx} = sol.{function_name}({args_str});
+        auto out{idx} = sol.{resolved_fn}({args_str});
         auto t1 = std::chrono::high_resolution_clock::now();
         double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
         std::cout << "TEST_RES:{idx}:" << ms << ":" << serialize(out{idx}) << std::endl;

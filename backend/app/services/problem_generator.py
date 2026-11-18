@@ -16,11 +16,19 @@ All sources feed the same ProblemPrivate structure and validation pipeline.
 
 import hashlib
 import logging
-from typing import Optional
+import re
+from typing import Dict, Optional
 
 from sqlalchemy.orm import Session as DBSession
 
-from ..schemas.problem import ProblemPrivate, generate_starter_templates
+from ..schemas.problem import (
+    FunctionArg,
+    FunctionSignature,
+    ProblemPrivate,
+    generate_starter_templates,
+    normalize_type,
+    reconcile_signature_with_tests,
+)
 from ..schemas.session import InterviewConfig
 from .gemini_service import gemini_service
 from .problem_validator import problem_validator
@@ -115,13 +123,14 @@ Generate a technical interview problem with the following parameters:
 {avoid_note}
 
 Requirements:
-1. Function signature, clear statement with at least 3 examples, constraints.
-2. 100% working Python reference solution.
-3. Independent Python brute-force solution (simpler, possibly slower).
-4. Python input generator `generate_inputs(n=10)` returning a list of small argument lists (lengths <= 15) for fast differential testing.
-5. Hidden test cases (at least 4) covering edge cases.
-6. Rubric items aligned to the 6 interview stages.
-7. NEVER name the algorithm, data structure, or give away the solution approach.
+1. Function signature: function_name must be a valid identifier (e.g. twoSum or two_sum). Argument types and return_type must be canonical DSA types: int, long, double, bool, string, char, int[], int[][], string[], ListNode, TreeNode, or void. NEVER use "Object", "Any", or unspecific types.
+2. Clear problem statement with at least 3 concrete examples and constraints.
+3. 100% working Python reference solution.
+4. Independent Python brute-force solution (simpler, possibly slower).
+5. Python input generator `generate_inputs(n=10)` returning a list of small argument lists (lengths <= 15) for fast differential testing.
+6. Hidden test cases (at least 4) covering edge cases.
+7. Rubric items aligned to the 6 interview stages.
+8. NEVER name the algorithm, data structure, or give away the solution approach.
 """
 
     # ------------------------------------------------------------------ #
@@ -252,6 +261,20 @@ STANDARD FRAMING:
 - Parse and preserve the statement, examples, and constraints faithfully from the pasted text.
 """
 
+        starter_snippets = fetched_data.get("starter_code") if fetched_data else None
+        official_sig_hint = ""
+        if starter_snippets:
+            java_snip = starter_snippets.get("java", "")
+            py_snip = starter_snippets.get("python", "")
+            if java_snip or py_snip:
+                official_sig_hint = f"""
+OFFICIAL STARTER CODE REFERENCE (YOU MUST MATCH THIS EXACT FUNCTION NAME AND SIGNATURE):
+Java:
+{java_snip}
+Python:
+{py_snip}
+"""
+
         prompt = f"""
 {id_note}The user has pasted the following problem statement verbatim from LeetCode:
 
@@ -260,6 +283,7 @@ STANDARD FRAMING:
 ---
 
 {framing_instructions}
+{official_sig_hint}
 
 Your task:
 1. Parse the core problem from the pasted text.
@@ -272,13 +296,16 @@ Your task:
 8. Generate rubric items aligned to the 6 interview stages.
 
 CRITICAL RULES:
+- Function signature: function_name must be a valid identifier (e.g. twoSum or two_sum). Argument types and return_type must be canonical DSA types: int, long, double, bool, string, char, int[], int[][], string[], ListNode, TreeNode, or void. NEVER use "Object", "Any", or unspecific types.
 - Do NOT reveal the original LeetCode title or LeetCode number in the public statement field.
   Set `title` to an appropriate descriptive title.
 - Do NOT reveal difficulty or category in the statement.
 - Do NOT include any editorial hints or known optimal approaches in the statement.
 - Visible examples and constraints must match the problem logic accurately.
 """
-        problem = await self._generate_and_validate(prompt, config, "leetcode")
+        problem = await self._generate_and_validate(
+            prompt, config, "leetcode", initial_starter_code=starter_snippets
+        )
 
         # Fingerprint from statement hash to avoid duplicates
         stmt_hash = hashlib.sha256(statement.encode()).hexdigest()[:16]
@@ -350,7 +377,11 @@ design questions without clear input/output), set `title = "UNSUPPORTED"` and
     #  Shared: generate + validate loop                                   #
     # ------------------------------------------------------------------ #
     async def _generate_and_validate(
-        self, prompt: str, config: InterviewConfig, source_label: str
+        self,
+        prompt: str,
+        config: InterviewConfig,
+        source_label: str,
+        initial_starter_code: Optional[Dict[str, str]] = None,
     ) -> ProblemPrivate:
         last_error = ""
 
@@ -369,10 +400,19 @@ design questions without clear input/output), set `title = "UNSUPPORTED"` and
                 logger.warning(f"[{source_label}] Gemini call failed: {e}")
                 continue
 
-            # Merge/complete starter templates
-            starter_templates = generate_starter_templates(candidate.signature)
+            # Reconcile function signature against concrete visible test cases
+            candidate.signature = reconcile_signature_with_tests(
+                candidate.signature, candidate.visible_tests
+            )
+
+            # Merge/complete starter templates with reconciled signature
+            starter_templates = generate_starter_templates(
+                candidate.signature, candidate.visible_tests
+            )
             if candidate.starter_code:
                 starter_templates.update(candidate.starter_code)
+            if initial_starter_code:
+                starter_templates.update(initial_starter_code)
             candidate.starter_code = starter_templates
 
             # Ensure category/difficulty populated from config or defaults if missing
