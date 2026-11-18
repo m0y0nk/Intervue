@@ -1,5 +1,4 @@
 import React from "react";
-import { Lock, Unlock, Code2, Tag } from "lucide-react";
 import { ProblemPublic } from "../types";
 
 interface ProblemPanelProps {
@@ -10,67 +9,54 @@ interface ProblemPanelProps {
 export const ProblemPanel: React.FC<ProblemPanelProps> = ({ problem, stage }) => {
   if (!problem) {
     return (
-      <div className="h-full flex items-center justify-center text-zinc-500 text-sm">
+      <div className="h-full flex items-center justify-center text-[#A59E91] text-13 font-mono">
         No problem loaded.
       </div>
     );
   }
 
   return (
-    <div className="h-full flex flex-col overflow-y-auto pr-2 space-y-6 text-sm text-zinc-300">
-      {/* Title & Metadata */}
-      <div>
-        <div className="flex items-center space-x-2 mb-2">
-          {problem.difficulty && (
-            <span
-              className={`text-xs px-2 py-0.5 rounded font-medium ${
-                problem.difficulty === "easy"
-                  ? "bg-emerald-950/70 text-emerald-400 border border-emerald-800/60"
-                  : problem.difficulty === "hard"
-                  ? "bg-red-950/70 text-red-400 border border-red-800/60"
-                  : "bg-amber-950/70 text-amber-400 border border-amber-800/60"
-              }`}
-            >
-              {problem.difficulty.toUpperCase()}
-            </span>
-          )}
-          {problem.category && (
-            <span className="text-xs px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-zinc-300 flex items-center">
-              <Tag className="w-3 h-3 mr-1 text-zinc-400" />
-              {problem.category.replace("_", " ")}
-            </span>
-          )}
-        </div>
-        <h2 className="text-lg font-semibold text-zinc-100 tracking-tight">
+    <div className="h-full flex flex-col overflow-y-auto pr-3 space-y-6 text-[#ECE6DA] text-15 leading-relaxed">
+      {/* Title & Plain Metadata */}
+      <div className="space-y-1.5 pb-4 border-b border-[#332E28]">
+        {/* Difficulty and Topic as plain muted text (hidden in Blind Mock) */}
+        {(problem.difficulty || problem.category) && (
+          <div className="text-13 text-[#A59E91] font-mono space-x-2">
+            {problem.difficulty && <span className="capitalize">{problem.difficulty}</span>}
+            {problem.difficulty && problem.category && <span>·</span>}
+            {problem.category && <span className="capitalize">{problem.category.replace("_", " ")}</span>}
+          </div>
+        )}
+        <h2 className="font-display text-28 text-[#ECE6DA] tracking-tight leading-snug">
           {problem.title}
         </h2>
       </div>
 
-      {/* Statement */}
-      <div className="space-y-3 leading-relaxed text-zinc-200">
-        <p className="whitespace-pre-wrap">{problem.statement}</p>
+      {/* Problem Statement */}
+      <div className="space-y-3">
+        <p className="whitespace-pre-wrap text-[#ECE6DA] leading-relaxed">
+          {problem.statement}
+        </p>
       </div>
 
-      {/* Examples */}
-      <div className="space-y-4">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-          Examples
-        </h3>
+      {/* Examples as Mono Blocks with a left rule in line (#332E28) */}
+      <div className="space-y-4 pt-2">
+        <div className="text-13 text-[#A59E91] font-medium">Examples</div>
         {problem.examples.map((ex, idx) => (
           <div
             key={idx}
-            className="p-3 rounded-md bg-[#121215] border border-[#27272a] space-y-2 text-xs"
+            className="pl-3.5 border-l-2 border-[#332E28] space-y-1 text-13 font-mono text-[#ECE6DA]"
           >
-            <div className="flex items-start">
-              <span className="font-semibold text-zinc-400 w-16 shrink-0">Input:</span>
-              <code className="text-zinc-200 font-mono">{ex.input_str}</code>
+            <div>
+              <span className="text-[#A59E91]">Input: </span>
+              <span>{ex.input_str}</span>
             </div>
-            <div className="flex items-start">
-              <span className="font-semibold text-zinc-400 w-16 shrink-0">Output:</span>
-              <code className="text-emerald-400 font-mono">{ex.output_str}</code>
+            <div>
+              <span className="text-[#A59E91]">Output: </span>
+              <span>{ex.output_str}</span>
             </div>
             {ex.explanation && (
-              <div className="text-zinc-400 pt-1 text-[11px] border-t border-[#1f1f23]">
+              <div className="text-[12px] text-[#A59E91] font-sans mt-1">
                 {ex.explanation}
               </div>
             )}
@@ -78,47 +64,23 @@ export const ProblemPanel: React.FC<ProblemPanelProps> = ({ problem, stage }) =>
         ))}
       </div>
 
-      {/* Revealed Constraints */}
-      <div className="space-y-2 pt-2 border-t border-[#27272a]">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-            Constraints
-          </h3>
-          {stage >= 3 ? (
-            <span className="text-[11px] flex items-center text-emerald-400">
-              <Unlock className="w-3 h-3 mr-1" /> Revealed
-            </span>
-          ) : (
-            <span className="text-[11px] flex items-center text-zinc-500">
-              <Lock className="w-3 h-3 mr-1" /> Unlocks in Stage 3
-            </span>
-          )}
-        </div>
-
+      {/* Constraints: Locked constraints show 'Unlocks in stage 3' as a real state, not a faded box */}
+      <div className="space-y-3 pt-4 border-t border-[#332E28]">
+        <div className="text-13 text-[#A59E91] font-medium">Constraints</div>
         {stage >= 3 ? (
-          <ul className="space-y-1.5 list-disc list-inside text-xs font-mono text-zinc-300 bg-[#121215] p-3 rounded-md border border-[#27272a]">
+          <ul className="space-y-1 text-13 font-mono text-[#ECE6DA]">
             {problem.revealed_constraints.map((c, i) => (
-              <li key={i}>{c}</li>
+              <li key={i} className="flex items-start">
+                <span className="text-[#A59E91] mr-2">·</span>
+                <span>{c}</span>
+              </li>
             ))}
           </ul>
         ) : (
-          <div className="p-3 rounded-md bg-[#121215]/60 border border-[#27272a]/60 text-xs text-zinc-500 italic">
-            Constraint details are locked during initial problem discussion. They will be automatically revealed when advancing to Stage 3 (Constraint Analysis).
+          <div className="pl-3.5 border-l-2 border-[#332E28] text-13 text-[#A59E91] py-1">
+            Constraints unlock automatically in Stage 3.
           </div>
         )}
-      </div>
-
-      {/* Function Signature */}
-      <div className="space-y-2 pt-2 border-t border-[#27272a]">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center">
-          <Code2 className="w-3.5 h-3.5 mr-1 text-zinc-400" />
-          Signature Contract
-        </h3>
-        <div className="p-2.5 rounded bg-[#0d0d10] border border-[#27272a] font-mono text-xs text-indigo-300">
-          {problem.signature.function_name}(
-          {problem.signature.args.map((a) => `${a.name}: ${a.type}`).join(", ")}
-          ) -&gt; {problem.signature.return_type}
-        </div>
       </div>
     </div>
   );

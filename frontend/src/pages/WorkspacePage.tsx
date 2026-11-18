@@ -1,17 +1,6 @@
-import React, { useState } from "react";
-import {
-  Play,
-  Pause,
-  RotateCcw,
-  ChevronRight,
-  Send,
-  AlertTriangle,
-  Code2,
-  FileText,
-  CheckCircle,
-} from "lucide-react";
+import React, { useState, useEffect } from "react";
 import { ChatMessage, RunCodeResponse, SessionState } from "../types";
-import { Timer } from "../components/Timer";
+import { StageRail } from "../components/StageRail";
 import { ProblemPanel } from "../components/ProblemPanel";
 import { NotesEditor } from "../components/NotesEditor";
 import { CodeEditor } from "../components/CodeEditor";
@@ -37,15 +26,6 @@ interface WorkspacePageProps {
   rateLimitSecondsLeft: number;
 }
 
-const STAGE_NAMES = [
-  "Understanding",
-  "Brute force",
-  "Constraints",
-  "Optimal approach",
-  "Edge cases",
-  "Coding",
-];
-
 export const WorkspacePage: React.FC<WorkspacePageProps> = ({
   session,
   chatLog,
@@ -70,164 +50,220 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
   const [centerView, setCenterView] = useState<"notes" | "code">(
     session.stage >= 6 ? "code" : "notes"
   );
+  const [mobileTab, setMobileTab] = useState<"problem" | "work" | "dialogue">("work");
+
+  // Local authoritative timer countdown
+  const [displayMs, setDisplayMs] = useState(session.remaining_ms);
+
+  useEffect(() => {
+    setDisplayMs(session.remaining_ms);
+  }, [session.remaining_ms]);
+
+  useEffect(() => {
+    if (session.status !== "running") return;
+    const interval = setInterval(() => {
+      setDisplayMs((prev) => Math.max(0, prev - 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [session.status]);
+
+  // Periodic resync every 15s
+  useEffect(() => {
+    if (session.status !== "running") return;
+    const syncInterval = setInterval(() => {
+      onSyncTimer();
+    }, 15000);
+    return () => clearInterval(syncInterval);
+  }, [session.status, onSyncTimer]);
+
+  // Automatically switch to code editor on stage 6
+  useEffect(() => {
+    if (session.stage >= 6) {
+      setCenterView("code");
+    }
+  }, [session.stage]);
+
+  const totalSeconds = Math.floor(displayMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  const formattedTime = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  const isWarning2 = totalSeconds <= 120 && totalSeconds > 0;
+  const elapsedRatio = Math.max(0, Math.min(1, (20 * 60 * 1000 - displayMs) / (20 * 60 * 1000)));
 
   return (
-    <div className="flex flex-col h-screen bg-[#09090b] text-zinc-100 overflow-hidden font-sans">
-      {/* Ready Screen Overlay (Timer has not started yet) */}
+    <div className="flex flex-col h-screen bg-[#12110F] text-[#ECE6DA] overflow-hidden font-sans select-none">
+      {/* Ready Screen Overlay */}
       {session.status === "ready" && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="max-w-md w-full bg-[#121215] border border-[#27272a] rounded-xl p-6 text-center space-y-5 shadow-2xl">
-            <div className="w-12 h-12 rounded-full bg-indigo-950/80 border border-indigo-700/80 flex items-center justify-center mx-auto text-indigo-400">
-              <CheckCircle className="w-6 h-6" />
-            </div>
-            <div className="space-y-1.5">
-              <h2 className="text-xl font-bold text-zinc-100">Problem Validated & Ready</h2>
-              <p className="text-xs text-zinc-400 leading-relaxed">
-                The problem has passed all differential verification tests in the sandbox.
-                Your 20-minute authoritative timer will begin once you click below.
+        <div className="fixed inset-0 bg-[#12110F]/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-[#1A1815] border border-[#332E28] rounded-[10px] p-6 space-y-5 text-center">
+            <div className="space-y-2">
+              <h2 className="font-serif text-[28px] font-normal text-[#ECE6DA]">Problem verified & ready</h2>
+              <p className="text-[13px] text-[#A59E91] leading-relaxed">
+                The problem statement and hidden tests have been validated in the isolated sandbox.
+                Your 20-minute timed session will start once you begin.
               </p>
             </div>
             <button
               onClick={onBegin}
-              className="w-full py-2.5 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs transition-colors shadow-lg shadow-indigo-600/30"
+              className="w-full py-2.5 rounded-[4px] bg-[#F5B83D] hover:bg-[#F5B83D]/90 text-[#12110F] font-medium text-[13px] transition-colors"
             >
-              Begin Interview
+              Start 20-minute interview
             </button>
           </div>
         </div>
       )}
 
-      {/* Header Bar */}
-      <header className="h-14 border-b border-[#27272a] bg-[#0c0c0f] px-4 flex items-center justify-between shrink-0">
-        {/* Left: Stage Progress */}
-        <div className="flex items-center space-x-3">
-          <div className="text-xs font-semibold text-zinc-300 font-mono">
-            STAGE {session.stage}/6:
-          </div>
-          <div className="flex items-center space-x-1.5">
-            {STAGE_NAMES.map((name, idx) => {
-              const stageNum = idx + 1;
-              const isCurrent = session.stage === stageNum;
-              const isPassed = session.stage > stageNum;
-              return (
-                <div
-                  key={stageNum}
-                  className={`text-[11px] px-2.5 py-1 rounded font-medium flex items-center space-x-1 transition-colors ${
-                    isCurrent
-                      ? "bg-indigo-950/80 border border-indigo-700 text-indigo-300"
-                      : isPassed
-                      ? "bg-zinc-900 border border-zinc-800 text-zinc-400"
-                      : "text-zinc-600"
-                  }`}
-                >
-                  <span>{stageNum}. {name}</span>
-                </div>
-              );
-            })}
-          </div>
+      {/* Top Bar with Stage Rail & Controls */}
+      <header className="h-14 border-b border-[#332E28] bg-[#1A1815] px-4 flex items-center justify-between shrink-0 gap-4">
+        {/* Stage Rail with embedded timer */}
+        <div className="flex-1 max-w-2xl">
+          <StageRail
+            currentStage={session.stage}
+            formattedTime={formattedTime}
+            progressRatio={elapsedRatio}
+            isWarning={isWarning2}
+            mode="topbar"
+          />
         </div>
 
-        {/* Center: Authoritative Timer */}
-        <div className="flex items-center space-x-2">
-          <Timer
-            remainingMs={session.remaining_ms}
-            status={session.status}
-            lastResumedAt={session.last_resumed_at}
-            onSyncRequest={onSyncTimer}
-          />
+        {/* Top Controls */}
+        <div className="flex items-center space-x-3 shrink-0">
           {session.status === "running" && (
             <button
               onClick={onPause}
-              title="Pause interview"
-              className="p-1.5 rounded bg-[#18181c] hover:bg-[#222228] border border-[#27272a] text-zinc-400 hover:text-zinc-200 transition-colors"
+              className="text-[13px] text-[#A59E91] hover:text-[#ECE6DA] px-2 py-1 transition-colors"
             >
-              <Pause className="w-4 h-4" />
+              Pause
             </button>
           )}
+
           {session.status === "paused" && (
             <button
               onClick={onResume}
-              title="Resume interview"
-              className="p-1.5 rounded bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-800 text-emerald-400 transition-colors"
+              className="px-3 py-1 rounded-[4px] bg-[#F5B83D] text-[#12110F] font-medium text-[13px] hover:bg-[#F5B83D]/90 transition-colors"
             >
-              <Play className="w-4 h-4" />
+              Resume
             </button>
           )}
-        </div>
 
-        {/* Right: Stage Control & Actions */}
-        <div className="flex items-center space-x-2">
           <button
             onClick={() => setShowResetModal(true)}
-            title="Reset attempt"
-            className="p-1.5 rounded bg-[#18181c] hover:bg-[#222228] border border-[#27272a] text-zinc-400 hover:text-red-400 transition-colors text-xs flex items-center space-x-1"
+            className="text-[13px] text-[#A59E91] hover:text-[#FF7A6E] px-2 py-1 transition-colors"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Reset</span>
+            Reset
           </button>
 
           {session.stage < 6 ? (
             <button
               onClick={onNextStage}
-              className="px-3 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs flex items-center space-x-1.5 transition-colors"
+              className="px-3.5 py-1.5 rounded-[4px] bg-[#F5B83D] hover:bg-[#F5B83D]/90 text-[#12110F] font-medium text-[13px] transition-colors"
             >
-              <span>Next Stage</span>
-              <ChevronRight className="w-3.5 h-3.5" />
+              Next stage
             </button>
           ) : (
             <button
               onClick={() => setShowSubmitModal(true)}
-              className="px-3.5 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs flex items-center space-x-1.5 transition-colors"
+              className="px-3.5 py-1.5 rounded-[4px] bg-[#F5B83D] hover:bg-[#F5B83D]/90 text-[#12110F] font-medium text-[13px] transition-colors"
             >
-              <span>Submit Interview</span>
-              <Send className="w-3.5 h-3.5" />
+              Submit interview
             </button>
           )}
         </div>
       </header>
 
-      {/* Main 3-Panel Workspace */}
-      <div className="flex-1 grid grid-cols-12 gap-2 p-2 overflow-hidden">
-        {/* Left: Problem Statement & Constraints (3 cols) */}
-        <div className="col-span-3 h-full overflow-hidden p-3 rounded-lg bg-[#0e0e11] border border-[#27272a]">
+      {/* Mobile Tab Switcher */}
+      <div className="md:hidden border-b border-[#332E28] bg-[#1A1815] px-2 py-1.5 flex items-center justify-around text-[13px]">
+        <button
+          onClick={() => setMobileTab("problem")}
+          className={`px-3 py-1 rounded-[4px] font-medium ${
+            mobileTab === "problem" ? "bg-[#221F1B] text-[#ECE6DA]" : "text-[#A59E91]"
+          }`}
+        >
+          Problem
+        </button>
+        <button
+          onClick={() => setMobileTab("work")}
+          className={`px-3 py-1 rounded-[4px] font-medium ${
+            mobileTab === "work" ? "bg-[#221F1B] text-[#ECE6DA]" : "text-[#A59E91]"
+          }`}
+        >
+          Work area
+        </button>
+        <button
+          onClick={() => setMobileTab("dialogue")}
+          className={`px-3 py-1 rounded-[4px] font-medium ${
+            mobileTab === "dialogue" ? "bg-[#221F1B] text-[#ECE6DA]" : "text-[#A59E91]"
+          }`}
+        >
+          Interviewer
+        </button>
+      </div>
+
+      {/* Main 3-Pane Workspace (28% / 44% / 28%) */}
+      <div className="flex-1 flex overflow-hidden p-2 gap-2 relative">
+        {/* Paused Overlay over work area */}
+        {session.status === "paused" && (
+          <div className="absolute inset-2 z-40 bg-[#12110F]/85 backdrop-blur-xs rounded-[10px] flex flex-col items-center justify-center space-y-4">
+            <span className="font-serif text-[28px] text-[#ECE6DA]">Interview paused</span>
+            <p className="text-[13px] text-[#A59E91] font-mono">
+              Timer stopped at {formattedTime}
+            </p>
+            <button
+              onClick={onResume}
+              className="px-5 py-2 rounded-[4px] bg-[#F5B83D] text-[#12110F] font-medium text-[13px] hover:bg-[#F5B83D]/90 transition-colors"
+            >
+              Resume interview
+            </button>
+          </div>
+        )}
+
+        {/* Left Pane: Problem Statement (28%) */}
+        <div
+          className={`w-full md:w-[28%] md:min-w-[280px] h-full overflow-hidden bg-[#1A1815] border border-[#332E28] rounded-[10px] p-4 flex flex-col ${
+            mobileTab === "problem" ? "flex" : "hidden md:flex"
+          }`}
+        >
           <ProblemPanel problem={session.problem} stage={session.stage} />
         </div>
 
-        {/* Center: Stage Notes & Code Editor (6 cols) */}
-        <div className="col-span-6 h-full flex flex-col space-y-2 overflow-hidden">
-          {/* Switch tabs between Notes and Code */}
-          <div className="flex items-center justify-between px-1">
-            <div className="flex items-center space-x-2 text-xs">
+        {/* Center Pane: Work Area (44%) */}
+        <div
+          className={`w-full md:w-[44%] md:min-w-[400px] h-full overflow-hidden bg-[#1A1815] border border-[#332E28] rounded-[10px] flex flex-col ${
+            mobileTab === "work" ? "flex" : "hidden md:flex"
+          }`}
+        >
+          {/* Work Area Header Tab Row */}
+          <div className="h-10 border-b border-[#332E28] px-3 flex items-center justify-between shrink-0 bg-[#1A1815]">
+            <div className="flex items-center space-x-1">
               <button
                 onClick={() => setCenterView("notes")}
-                className={`px-3 py-1 rounded font-medium flex items-center space-x-1.5 transition-colors ${
+                className={`px-3 py-1.5 text-[13px] rounded-[4px] font-medium transition-colors ${
                   centerView === "notes"
-                    ? "bg-[#18181c] text-indigo-300 border border-indigo-900/40"
-                    : "text-zinc-500 hover:text-zinc-300"
+                    ? "bg-[#221F1B] text-[#ECE6DA] border border-[#332E28]"
+                    : "text-[#A59E91] hover:text-[#ECE6DA]"
                 }`}
               >
-                <FileText className="w-3.5 h-3.5" />
-                <span>Stage Notes</span>
+                Stage notes
               </button>
               <button
                 onClick={() => setCenterView("code")}
-                className={`px-3 py-1 rounded font-medium flex items-center space-x-1.5 transition-colors ${
+                className={`px-3 py-1.5 text-[13px] rounded-[4px] font-medium transition-colors flex items-center space-x-1.5 ${
                   centerView === "code"
-                    ? "bg-[#18181c] text-indigo-300 border border-indigo-900/40"
-                    : "text-zinc-500 hover:text-zinc-300"
+                    ? "bg-[#221F1B] text-[#ECE6DA] border border-[#332E28]"
+                    : "text-[#A59E91] hover:text-[#ECE6DA]"
                 }`}
               >
-                <Code2 className="w-3.5 h-3.5" />
-                <span>Code Editor</span>
+                <span>Code editor</span>
                 {session.stage >= 6 && (
-                  <span className="text-[10px] px-1 rounded bg-indigo-950 text-indigo-400 border border-indigo-800">
-                    STAGE 6
+                  <span className="text-[10px] px-1 py-0.2 rounded-[2px] bg-[#332E28] text-[#ECE6DA] font-mono">
+                    Stage 6
                   </span>
                 )}
               </button>
             </div>
           </div>
 
+          {/* Tab View Container */}
           <div className="flex-1 overflow-hidden relative">
             <div className={`h-full ${centerView === "notes" ? "block" : "hidden"}`}>
               <NotesEditor
@@ -249,8 +285,12 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
           </div>
         </div>
 
-        {/* Right: Interviewer Dialogue (3 cols) */}
-        <div className="col-span-3 h-full overflow-hidden">
+        {/* Right Pane: Interviewer Dialogue (28%) */}
+        <div
+          className={`w-full md:w-[28%] md:min-w-[280px] h-full overflow-hidden bg-[#1A1815] border border-[#332E28] rounded-[10px] flex flex-col ${
+            mobileTab === "dialogue" ? "flex" : "hidden md:flex"
+          }`}
+        >
           <InterviewerPanel
             stage={session.stage}
             chatLog={chatLog}
@@ -262,19 +302,18 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
 
       {/* Reset Confirmation Modal */}
       {showResetModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="max-w-sm w-full bg-[#121215] border border-[#27272a] rounded-lg p-5 space-y-4">
-            <div className="flex items-center space-x-2 text-amber-400 font-semibold text-sm">
-              <AlertTriangle className="w-4 h-4" />
-              <span>Abandon Current Attempt?</span>
+        <div className="fixed inset-0 bg-[#12110F]/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="max-w-sm w-full bg-[#1A1815] border border-[#332E28] rounded-[10px] p-5 space-y-4">
+            <div className="space-y-1.5">
+              <h3 className="font-serif text-[18px] text-[#ECE6DA]">Abandon current session?</h3>
+              <p className="text-[13px] text-[#A59E91] leading-relaxed">
+                Resetting will abandon this interview attempt and return you to the setup briefing.
+              </p>
             </div>
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              Resetting will abandon this attempt (marking it abandoned in history). You will be returned to the setup screen to launch a fresh session.
-            </p>
-            <div className="flex items-center justify-end space-x-2 pt-2">
+            <div className="flex items-center justify-end space-x-3 pt-2">
               <button
                 onClick={() => setShowResetModal(false)}
-                className="px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-300"
+                className="text-[13px] text-[#A59E91] hover:text-[#ECE6DA] px-2 py-1"
               >
                 Cancel
               </button>
@@ -283,9 +322,9 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
                   setShowResetModal(false);
                   await onReset();
                 }}
-                className="px-3 py-1.5 rounded bg-red-600 hover:bg-red-500 text-xs text-white font-medium"
+                className="px-3 py-1.5 rounded-[4px] bg-[#FF7A6E] text-[#12110F] text-[13px] font-medium hover:bg-[#FF7A6E]/90 transition-colors"
               >
-                Confirm Reset
+                Confirm reset
               </button>
             </div>
           </div>
@@ -294,21 +333,20 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
 
       {/* Submit Confirmation Modal */}
       {showSubmitModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="max-w-sm w-full bg-[#121215] border border-[#27272a] rounded-lg p-5 space-y-4">
-            <div className="flex items-center space-x-2 text-indigo-400 font-semibold text-sm">
-              <Send className="w-4 h-4" />
-              <span>Submit & End Interview?</span>
+        <div className="fixed inset-0 bg-[#12110F]/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="max-w-sm w-full bg-[#1A1815] border border-[#332E28] rounded-[10px] p-5 space-y-4">
+            <div className="space-y-1.5">
+              <h3 className="font-serif text-[18px] text-[#ECE6DA]">Submit solution & end interview?</h3>
+              <p className="text-[13px] text-[#A59E91] leading-relaxed">
+                This will execute hidden evaluation test cases in the sandbox and generate your final evaluation report with 10 anchored dimensions.
+              </p>
             </div>
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              This will execute hidden evaluation test cases once in the sandbox and generate your final evaluation report with 10 scored dimensions and hiring verdict.
-            </p>
-            <div className="flex items-center justify-end space-x-2 pt-2">
+            <div className="flex items-center justify-end space-x-3 pt-2">
               <button
                 onClick={() => setShowSubmitModal(false)}
-                className="px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-300"
+                className="text-[13px] text-[#A59E91] hover:text-[#ECE6DA] px-2 py-1"
               >
-                Continue Coding
+                Continue coding
               </button>
               <button
                 onClick={async () => {
@@ -316,9 +354,9 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
                   await onSubmit();
                 }}
                 disabled={isSubmitting}
-                className="px-3.5 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-xs text-white font-medium disabled:opacity-50"
+                className="px-3.5 py-1.5 rounded-[4px] bg-[#F5B83D] hover:bg-[#F5B83D]/90 text-[#12110F] text-[13px] font-medium transition-colors disabled:opacity-50"
               >
-                {isSubmitting ? "Evaluating..." : "Submit Solution"}
+                {isSubmitting ? "Evaluating..." : "Submit solution"}
               </button>
             </div>
           </div>

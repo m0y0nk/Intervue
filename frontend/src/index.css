@@ -1,39 +1,79 @@
 @import "tailwindcss";
 
+@theme {
+  --color-bg: #12110F;
+  --color-surface: #1A1815;
+  --color-raised: #221F1B;
+  --color-line: #332E28;
+  --color-line-strong: #6B645A;
+  --color-text-main: #ECE6DA;
+  --color-text-muted: #A59E91;
+  --color-amber: #F5B83D;
+  --color-pass: #7BD88F;
+  --color-fail: #FF7A6E;
+
+  --font-display: "Newsreader", Georgia, Cambria, serif;
+  --font-ui: "Hanken Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", Consolas, "Courier New", monospace;
+}
+
 :root {
   color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+*:focus-visible {
+  outline: 2px solid #F5B83D;
+  outline-offset: 2px;
 }
 
 body {
   margin: 0;
   padding: 0;
-  background-color: #09090b;
-  color: #f4f4f5;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: #12110F;
+  color: #ECE6DA;
+  font-family: var(--font-ui), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom scrollbar for dark layout */
+/* Typography helper classes */
+.font-display {
+  font-family: var(--font-display), Georgia, serif;
+}
+
+.font-ui {
+  font-family: var(--font-ui), sans-serif;
+}
+
+.font-mono {
+  font-family: var(--font-mono), monospace;
+}
+
+/* Custom minimal scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0e0e11;
+  background: #12110F;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #27272a;
-  border-radius: 3px;
+  background: #332E28;
+  border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3f3f46;
+  background: #6B645A;
 }
 
-/* Hide scrollbar utility */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -42,7 +82,7 @@ body {
   scrollbar-width: none;
 }
 
-/* CodeMirror customization: suppress suggestion widgets & preserve plain-text feel */
+/* CodeMirror customization for warm editorial dark */
 .cm-tooltip-autocomplete,
 .cm-completionList,
 .cm-tooltip-hover {
@@ -51,11 +91,45 @@ body {
 
 .cm-editor {
   height: 100% !important;
-  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace !important;
+  font-family: var(--font-mono), monospace !important;
   font-size: 13.5px !important;
-  background-color: #0d0d10 !important;
+  background-color: #221F1B !important;
+  color: #ECE6DA !important;
+}
+
+.cm-gutters {
+  background-color: #1A1815 !important;
+  color: #6B645A !important;
+  border-right: 1px solid #332E28 !important;
+}
+
+.cm-activeLineGutter {
+  background-color: #221F1B !important;
+  color: #F5B83D !important;
+}
+
+.cm-activeLine {
+  background-color: rgba(245, 184, 61, 0.05) !important;
+}
+
+.cm-cursor {
+  border-left-color: #F5B83D !important;
 }
 
 .cm-scroller {
   line-height: 1.6 !important;
+}
+
+/* Transition utility for stage content crossfade */
+.stage-crossfade {
+  transition: opacity 200ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

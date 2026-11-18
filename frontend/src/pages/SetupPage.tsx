@@ -1,32 +1,13 @@
 import React, { useState } from "react";
 import {
-  Terminal,
-  Shield,
-  Sparkles,
-  Clock,
-  ArrowRight,
-  Loader2,
-  Eye,
-  EyeOff,
-  BookOpen,
-  RefreshCw,
-  AlertCircle,
-  Target,
-  Code2,
-  FileCode,
-  LayoutDashboard,
-  Search,
-  CheckCircle2,
-} from "lucide-react";
-import {
   InterviewCategory,
-  InterviewConfig,
   InterviewDifficulty,
   InterviewMode,
   InterviewSource,
   InterviewStyle,
   SessionCreatePayload,
 } from "../types";
+import { StageRail } from "../components/StageRail";
 
 interface SetupPageProps {
   onStartSession: (payload: SessionCreatePayload) => Promise<void>;
@@ -35,67 +16,24 @@ interface SetupPageProps {
   onViewDashboard?: () => void;
 }
 
-const SOURCE_META: Record<
-  "random_dsa" | "leetcode" | "adaptive" | "custom",
-  {
-    label: string;
-    icon: React.ReactNode;
-    description: string;
-  }
-> = {
-  random_dsa: {
-    label: "Random DSA",
-    icon: <Sparkles className="w-3.5 h-3.5" />,
-    description: "Standard algorithmic problem with sandbox differential validation.",
-  },
-  leetcode: {
-    label: "LeetCode Paste",
-    icon: <Code2 className="w-3.5 h-3.5" />,
-    description: "Paste a problem statement from LeetCode. Converted and verified in sandbox.",
-  },
-  adaptive: {
-    label: "Adaptive Practice",
-    icon: <Target className="w-3.5 h-3.5" />,
-    description: "History-driven weakness targeting. Requires >= 5 completed interviews.",
-  },
-  custom: {
-    label: "Custom Problem",
-    icon: <FileCode className="w-3.5 h-3.5" />,
-    description: "Paste your own problem statement, constraints, or problem URL.",
-  },
-};
+const SOURCES: { id: InterviewSource; label: string; desc: string }[] = [
+  { id: "random_dsa", label: "Random DSA", desc: "Algorithmic problem from repository" },
+  { id: "leetcode", label: "LeetCode", desc: "Lookup by number or paste problem text" },
+  { id: "adaptive", label: "Adaptive", desc: "Weakness targeting from your history" },
+  { id: "custom", label: "Custom", desc: "User-defined statement and constraints" },
+];
 
-const MODE_META: Record<
-  InterviewMode,
-  {
-    label: string;
-    icon: React.ReactNode;
-    description: string;
-    blocksMixed?: boolean;
-  }
-> = {
-  standard: {
-    label: "Standard",
-    icon: <BookOpen className="w-3.5 h-3.5" />,
-    description: "Full metadata visible. Default interview experience.",
-  },
-  blind_mock: {
-    label: "Blind Mock",
-    icon: <EyeOff className="w-3.5 h-3.5" />,
-    description: "Title, category & difficulty hidden server-side. Real-world FAANG simulation.",
-  },
-  topic_mastery: {
-    label: "Topic Mastery",
-    icon: <Shield className="w-3.5 h-3.5" />,
-    description: "Focused practice on a single topic. Category is required.",
-    blocksMixed: true,
-  },
-  revision: {
-    label: "Revision",
-    icon: <RefreshCw className="w-3.5 h-3.5" />,
-    description: "Reload a past problem for comparison. Requires completed history.",
-  },
-};
+const MODES: { id: InterviewMode; label: string; desc: string }[] = [
+  { id: "standard", label: "Standard", desc: "Full problem metadata visible" },
+  { id: "blind_mock", label: "Blind mock", desc: "Title, topic, and difficulty concealed" },
+  { id: "topic_mastery", label: "Topic mastery", desc: "Focused single-category drill" },
+  { id: "revision", label: "Revision", desc: "Re-attempt a prior completed problem" },
+];
+
+const FRAMINGS: { id: "standard" | "business"; label: string; desc: string }[] = [
+  { id: "standard", label: "Standard", desc: "Classic algorithmic formulation" },
+  { id: "business", label: "Business scenario", desc: "Real-world context concealing algorithm names" },
+];
 
 export const SetupPage: React.FC<SetupPageProps> = ({
   onStartSession,
@@ -104,12 +42,13 @@ export const SetupPage: React.FC<SetupPageProps> = ({
   onViewDashboard,
 }) => {
   const [source, setSource] = useState<InterviewSource>("random_dsa");
+  const [framing, setFraming] = useState<"standard" | "business">("standard");
+  const [mode, setMode] = useState<InterviewMode>("standard");
+
   const [category, setCategory] = useState<InterviewCategory>("arrays_hashing");
   const [difficulty, setDifficulty] = useState<InterviewDifficulty>("medium");
   const [style, setStyle] = useState<InterviewStyle>("general");
   const [language, setLanguage] = useState<"python" | "java" | "cpp">("python");
-  const [mode, setMode] = useState<InterviewMode>("standard");
-  const [framing, setFraming] = useState<"standard" | "business">("standard");
 
   // Source-specific inputs
   const [leetcodeId, setLeetcodeId] = useState("");
@@ -129,16 +68,6 @@ export const SetupPage: React.FC<SetupPageProps> = ({
 
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  const isMixedBlocked = MODE_META[mode].blocksMixed && category === "mixed";
-
-  const handleModeChange = (newMode: InterviewMode) => {
-    setMode(newMode);
-    setValidationError(null);
-    if (MODE_META[newMode].blocksMixed && category === "mixed") {
-      setCategory("arrays_hashing");
-    }
-  };
-
   const handleSourceChange = (newSource: InterviewSource) => {
     setSource(newSource);
     setValidationError(null);
@@ -153,10 +82,18 @@ export const SetupPage: React.FC<SetupPageProps> = ({
     }
   };
 
+  const handleModeChange = (newMode: InterviewMode) => {
+    setMode(newMode);
+    setValidationError(null);
+    if (newMode === "topic_mastery" && category === "mixed") {
+      setCategory("arrays_hashing");
+    }
+  };
+
   const handleFetchLeetcode = async () => {
     const query = leetcodeId.trim();
     if (!query) {
-      setLeetcodeFetchError("Please enter a problem number (e.g. 42) or title slug (e.g. trapping-rain-water).");
+      setLeetcodeFetchError("Enter a problem number (e.g. 42) or title slug (e.g. trapping-rain-water).");
       return;
     }
     setIsFetchingLeetcode(true);
@@ -187,18 +124,18 @@ export const SetupPage: React.FC<SetupPageProps> = ({
     e.preventDefault();
     setValidationError(null);
 
-    if (source !== "leetcode" && isMixedBlocked) {
-      setValidationError("Topic Mastery requires a specific category, not 'Mixed'.");
+    if (mode === "topic_mastery" && category === "mixed") {
+      setValidationError("Topic mastery requires a specific category rather than Mixed.");
       return;
     }
 
-    if (source === "leetcode" && (!leetcodeStatement || leetcodeStatement.trim().length < 30) && !leetcodeId.trim()) {
-      setValidationError("Please enter a LeetCode problem number/slug or paste the problem statement.");
+    if (source === "leetcode" && !leetcodeStatement && !leetcodeId.trim()) {
+      setValidationError("Provide a LeetCode problem number or paste the problem statement.");
       return;
     }
 
     if (source === "custom" && (!customStatement || customStatement.trim().length < 20)) {
-      setValidationError("Please provide a problem statement for your custom problem.");
+      setValidationError("Provide a problem statement for your custom problem (at least 20 characters).");
       return;
     }
 
@@ -209,7 +146,7 @@ export const SetupPage: React.FC<SetupPageProps> = ({
           mode,
           style,
           difficulty: source === "leetcode" ? undefined : difficulty,
-          category: source === "leetcode" ? undefined : category,
+          category: mode === "topic_mastery" ? category : undefined,
           language,
           framing: (source === "random_dsa" || source === "leetcode") ? framing : "standard",
           duration: 1200,
@@ -231,473 +168,379 @@ export const SetupPage: React.FC<SetupPageProps> = ({
     }
   };
 
+  // Helper label for Ticket summary
+  const selectedSourceLabel = SOURCES.find((s) => s.id === source)?.label ?? source;
+  const selectedModeLabel = MODES.find((m) => m.id === mode)?.label ?? mode;
+  const selectedFramingLabel = framing === "business" ? "Business scenario" : "Standard";
+
   return (
-    <div className="min-h-screen bg-[#09090b] text-zinc-100 flex items-center justify-center p-6">
-      <div className="max-w-2xl w-full space-y-6">
-        {/* Header */}
-        <div className="space-y-2 text-center relative">
-          {onViewDashboard && (
-            <div className="absolute right-0 top-0">
-              <button
-                type="button"
-                onClick={onViewDashboard}
-                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs text-zinc-300 hover:text-zinc-100 transition-colors"
-              >
-                <LayoutDashboard className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Dashboard</span>
-              </button>
-            </div>
-          )}
-          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-xs font-mono text-zinc-400 mb-1">
-            <Terminal className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Intervue AI Technical Simulator</span>
+    <div className="min-h-screen bg-[#12110F] text-[#ECE6DA] flex items-center justify-center p-4 sm:p-8 selection:bg-[#F5B83D] selection:text-[#12110F]">
+      <div className="max-w-4xl w-full">
+        {/* Top Header */}
+        <div className="flex items-baseline justify-between mb-8 pb-4 border-b border-[#332E28]">
+          <div>
+            <h1 className="font-display text-28 sm:text-[32px] text-[#ECE6DA] tracking-tight leading-snug">
+              Interview session briefing
+            </h1>
+            <p className="text-13 text-[#A59E91] mt-1">
+              Rigorous 20-minute timed simulation across 6 progressive interview stages.
+            </p>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-50">
-            Configure Interview Session
-          </h1>
-          <p className="text-xs text-zinc-400">
-            Rigorous 20-minute simulated technical interview with sandbox code execution.
-          </p>
+          {onViewDashboard && (
+            <button
+              type="button"
+              onClick={onViewDashboard}
+              className="text-13 text-[#A59E91] hover:text-[#ECE6DA] transition-colors border-b border-[#332E28] hover:border-[#ECE6DA] pb-0.5"
+            >
+              Past sessions
+            </button>
+          )}
         </div>
 
         {/* Validation Error Banner */}
         {validationError && (
-          <div className="flex items-start space-x-3 px-4 py-3 rounded-lg bg-red-950/60 border border-red-800/70 text-red-300 text-xs leading-relaxed">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-400" />
+          <div className="mb-6 p-3 rounded-[4px] bg-[#1A1815] border border-[#FF7A6E] text-[#FF7A6E] text-13 flex items-start space-x-2">
+            <span className="font-semibold shrink-0">Notice:</span>
             <span>{validationError}</span>
           </div>
         )}
 
-        {/* Configuration Card */}
-        <form
-          onSubmit={handleSubmit}
-          className="p-6 rounded-xl bg-[#121215] border border-[#27272a] space-y-5 shadow-xl"
-        >
-          {/* Question Source */}
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-              Question Source
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {(Object.keys(SOURCE_META) as (keyof typeof SOURCE_META)[]).map((s) => {
-                const meta = SOURCE_META[s];
-                const isActive = source === s;
-                return (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => handleSourceChange(s)}
-                    className={`flex items-start space-x-2 p-2.5 rounded-md border text-left transition-colors ${
-                      isActive
-                        ? "bg-indigo-950/80 border-indigo-700 text-indigo-200"
-                        : "bg-[#18181c] border-[#27272a] text-zinc-400 hover:border-zinc-700 hover:text-zinc-300"
-                    }`}
-                  >
-                    <span className={`mt-0.5 shrink-0 ${isActive ? "text-indigo-400" : "text-zinc-500"}`}>
-                      {meta.icon}
-                    </span>
-                    <div>
-                      <div className="text-xs font-medium">{meta.label}</div>
-                      <div className="text-[10px] text-zinc-500 leading-tight mt-0.5">
-                        {meta.description}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
+        {/* Two-Column Briefing Form */}
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
+          {/* Left Column: Form Controls (7 cols) */}
+          <div className="md:col-span-7 space-y-6">
+            {/* 1. Question Source Segmented Control */}
+            <div className="space-y-2">
+              <label className="text-13 text-[#A59E91] block">Question source</label>
+              <div className="grid grid-cols-2 gap-1.5 p-1 rounded-[4px] bg-[#1A1815] border border-[#332E28]">
+                {SOURCES.map((s) => {
+                  const isActive = source === s.id;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => handleSourceChange(s.id)}
+                      className={`px-3 py-2 text-left rounded-[3px] text-13 transition-all ${
+                        isActive
+                          ? "bg-[#221F1B] text-[#ECE6DA] border border-[#6B645A] font-medium"
+                          : "text-[#A59E91] hover:text-[#ECE6DA] hover:bg-[#221F1B]/40"
+                      }`}
+                    >
+                      <div className="font-medium">{s.label}</div>
+                      <div className="text-[11px] text-[#A59E91] truncate mt-0.5">{s.desc}</div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
 
-          {/* LeetCode Paste Inputs */}
-          {source === "leetcode" && (
-            <div className="p-3.5 rounded-lg bg-[#18181c] border border-zinc-800 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-zinc-200 flex items-center space-x-1.5">
-                  <Code2 className="w-3.5 h-3.5 text-amber-400" />
-                  <span>LeetCode Problem Details</span>
-                </span>
-                <span className="text-[10px] text-zinc-500">Query by # or paste verbatim</span>
-              </div>
-
-              <div>
-                <label className="text-[11px] text-zinc-400 mb-1 block">
-                  Problem Number or Title Slug (e.g. 42, two-sum)
-                </label>
-                <div className="flex space-x-2">
-                  <input
-                    type="text"
-                    value={leetcodeId}
-                    onChange={(e) => {
-                      setLeetcodeId(e.target.value);
-                      if (leetcodeFetchError) setLeetcodeFetchError(null);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleFetchLeetcode();
-                      }
-                    }}
-                    placeholder="e.g. 42 or trapping-rain-water"
-                    className="flex-1 bg-[#121215] border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-indigo-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleFetchLeetcode}
-                    disabled={isFetchingLeetcode || !leetcodeId.trim()}
-                    className="px-3 py-1.5 rounded bg-indigo-600/90 hover:bg-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-medium flex items-center space-x-1.5 transition-colors shrink-0"
-                  >
-                    {isFetchingLeetcode ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span>Querying...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Search className="w-3.5 h-3.5" />
-                        <span>Fetch Problem</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-                {leetcodeFetchError && (
-                  <p className="text-[11px] text-red-400 mt-1.5 flex items-center space-x-1">
-                    <AlertCircle className="w-3 h-3 shrink-0" />
-                    <span>{leetcodeFetchError}</span>
-                  </p>
-                )}
-              </div>
-
-              {/* Fetched Problem Badge */}
-              {fetchedMeta && (
-                <div className="p-2.5 rounded bg-emerald-950/40 border border-emerald-800/60 flex items-start space-x-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 mt-0.5 shrink-0" />
-                  <div className="text-xs">
-                    <div className="font-semibold text-emerald-200 flex items-center space-x-2">
-                      <span>#{fetchedMeta.id} {fetchedMeta.title}</span>
-                      <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-emerald-900/80 text-emerald-300 border border-emerald-700/60">
-                        {fetchedMeta.difficulty}
-                      </span>
-                    </div>
-                    {fetchedMeta.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {fetchedMeta.tags.slice(0, 4).map((tag) => (
-                          <span key={tag} className="text-[9px] px-1 py-0.5 rounded bg-zinc-800/80 text-zinc-400">
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label className="text-[11px] text-zinc-400 mb-1 flex items-center justify-between">
-                  <span>
-                    Problem Statement &amp; Constraints <span className="text-zinc-500 font-normal">(auto-populated or paste manually)</span>
-                  </span>
-                  {leetcodeStatement && (
+            {/* Source Specific Inputs: LeetCode */}
+            {source === "leetcode" && (
+              <div className="p-4 rounded-[4px] bg-[#1A1815] border border-[#332E28] space-y-3.5">
+                <div className="text-13 font-medium text-[#ECE6DA]">LeetCode problem lookup</div>
+                <div>
+                  <label className="text-[12px] text-[#A59E91] block mb-1">
+                    Problem number or title slug
+                  </label>
+                  <div className="flex space-x-2">
+                    <input
+                      type="text"
+                      value={leetcodeId}
+                      onChange={(e) => {
+                        setLeetcodeId(e.target.value);
+                        if (leetcodeFetchError) setLeetcodeFetchError(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleFetchLeetcode();
+                        }
+                      }}
+                      placeholder="e.g. 42 or trapping-rain-water"
+                      className="flex-1 bg-[#12110F] border border-[#6B645A] rounded-[4px] px-3 py-1.5 text-13 text-[#ECE6DA] placeholder-[#6B645A] outline-none"
+                    />
                     <button
                       type="button"
-                      onClick={() => {
-                        setLeetcodeStatement("");
-                        setFetchedMeta(null);
-                      }}
-                      className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
+                      onClick={handleFetchLeetcode}
+                      disabled={isFetchingLeetcode || !leetcodeId.trim()}
+                      className="px-3.5 py-1.5 rounded-[4px] bg-[#221F1B] hover:bg-[#332E28] border border-[#6B645A] text-[#ECE6DA] text-13 disabled:opacity-40 transition-colors shrink-0"
                     >
-                      Clear
+                      {isFetchingLeetcode ? "Fetching..." : "Fetch"}
                     </button>
+                  </div>
+                  {leetcodeFetchError && (
+                    <div className="text-[12px] text-[#FF7A6E] mt-1.5">{leetcodeFetchError}</div>
                   )}
-                </label>
-                <textarea
-                  rows={4}
-                  value={leetcodeStatement}
-                  onChange={(e) => setLeetcodeStatement(e.target.value)}
-                  placeholder="Paste problem description, examples, and constraints or fetch by # above..."
-                  className="w-full bg-[#121215] border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-indigo-500 font-mono resize-y"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Custom Problem Inputs */}
-          {source === "custom" && (
-            <div className="p-3.5 rounded-lg bg-[#18181c] border border-zinc-800 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-zinc-200 flex items-center space-x-1.5">
-                  <FileCode className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Custom Problem Specification</span>
-                </span>
-                <span className="text-[10px] text-zinc-500">Verified in sandbox</span>
-              </div>
-              <div>
-                <label className="text-[11px] text-zinc-400 mb-1 block">
-                  Problem Statement &amp; Examples <span className="text-red-400">*</span>
-                </label>
-                <textarea
-                  rows={4}
-                  value={customStatement}
-                  onChange={(e) => setCustomStatement(e.target.value)}
-                  placeholder="Describe the function requirements, expected inputs, outputs, and edge cases..."
-                  className="w-full bg-[#121215] border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-indigo-500 font-mono resize-y"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] text-zinc-400 mb-1 block">Source URL (optional)</label>
-                  <input
-                    type="text"
-                    value={customUrl}
-                    onChange={(e) => setCustomUrl(e.target.value)}
-                    placeholder="https://..."
-                    className="w-full bg-[#121215] border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-indigo-500"
-                  />
                 </div>
-                <div>
-                  <label className="text-[11px] text-zinc-400 mb-1 block">Extra Constraints (optional)</label>
-                  <input
-                    type="text"
-                    value={customConstraints}
-                    onChange={(e) => setCustomConstraints(e.target.value)}
-                    placeholder="e.g. N <= 10^5, O(N) time"
-                    className="w-full bg-[#121215] border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-zinc-200 outline-none focus:border-indigo-500"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
 
-          {/* Adaptive Notice */}
-          {source === "adaptive" && (
-            <div className="p-3 rounded-lg bg-indigo-950/30 border border-indigo-800/50 text-xs text-indigo-300/90 space-y-1">
-              <div className="font-semibold flex items-center space-x-1.5">
-                <Target className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Deterministic History Analysis</span>
-              </div>
-              <p className="text-[11px] text-indigo-200/70 leading-relaxed">
-                Intervue analyzes your stored evaluation scores to identify your weakest categories and dimension gaps. Category and difficulty are chosen automatically. Requires at least 5 completed interview attempts.
-              </p>
-            </div>
-          )}
-
-          {/* Framing Option for Random DSA & LeetCode Paste */}
-          {(source === "random_dsa" || source === "leetcode") && (
-            <div className="space-y-1.5 p-3 rounded-lg bg-[#18181c] border border-zinc-800">
-              <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400 block">
-                Problem Framing
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setFraming("standard")}
-                  className={`flex items-start space-x-2 px-3 py-2 rounded-md border text-left text-xs transition-colors ${
-                    framing === "standard"
-                      ? "bg-indigo-950/80 border-indigo-700 text-indigo-200"
-                      : "bg-[#121215] border-[#27272a] text-zinc-400 hover:border-zinc-700 hover:text-zinc-300"
-                  }`}
-                >
-                  <div>
-                    <div className="font-semibold">Standard Algorithmic</div>
-                    <div className="text-[10px] text-zinc-500 mt-0.5">Classic DSA formulation</div>
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFraming("business")}
-                  className={`flex items-start space-x-2 px-3 py-2 rounded-md border text-left text-xs transition-colors ${
-                    framing === "business"
-                      ? "bg-indigo-950/80 border-indigo-700 text-indigo-200"
-                      : "bg-[#121215] border-[#27272a] text-zinc-400 hover:border-zinc-700 hover:text-zinc-300"
-                  }`}
-                >
-                  <div>
-                    <div className="font-semibold">Business Framing</div>
-                    <div className="text-[10px] text-zinc-500 mt-0.5">Real-world domain disguise</div>
-                  </div>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Interview Mode */}
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-              Interview Mode
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {(Object.keys(MODE_META) as InterviewMode[]).map((m) => {
-                const meta = MODE_META[m];
-                const isActive = mode === m;
-                return (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => handleModeChange(m)}
-                    className={`flex items-start space-x-2.5 px-3 py-2.5 rounded-md border text-left transition-colors ${
-                      isActive
-                        ? "bg-indigo-950/80 border-indigo-700 text-indigo-200"
-                        : "bg-[#18181c] border-[#27272a] text-zinc-400 hover:border-zinc-600 hover:text-zinc-300"
-                    }`}
-                  >
-                    <span className={`mt-0.5 shrink-0 ${isActive ? "text-indigo-400" : "text-zinc-500"}`}>
-                      {meta.icon}
-                    </span>
-                    <div>
-                      <div className="text-xs font-semibold">{meta.label}</div>
-                      <div className="text-[10px] leading-snug mt-0.5 text-zinc-500">
-                        {meta.description}
-                      </div>
+                {fetchedMeta && (
+                  <div className="p-2.5 rounded-[4px] bg-[#221F1B] border border-[#332E28] text-13">
+                    <div className="flex items-baseline space-x-2">
+                      <span className="font-medium text-[#7BD88F]">#{fetchedMeta.id} {fetchedMeta.title}</span>
+                      <span className="text-[11px] text-[#A59E91] capitalize">({fetchedMeta.difficulty})</span>
                     </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Category (Hidden/auto when adaptive or leetcode) */}
-          {source !== "adaptive" && source !== "leetcode" && (
-            <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                Problem Category
-              </label>
-              <select
-                value={category}
-                onChange={(e) => {
-                  setCategory(e.target.value as InterviewCategory);
-                  setValidationError(null);
-                }}
-                className="w-full bg-[#18181c] border border-[#27272a] rounded-md px-3 py-2 text-xs text-zinc-200 outline-none focus:border-indigo-500 transition-colors"
-              >
-                <option value="arrays_hashing">Arrays &amp; Hashing</option>
-                <option value="two_pointers">Two Pointers</option>
-                <option value="sliding_window">Sliding Window</option>
-                <option value="binary_search">Binary Search</option>
-                <option value="stack_queue">Stack &amp; Queue</option>
-                <option value="linked_lists">Linked Lists</option>
-                <option value="trees">Trees</option>
-                <option value="graphs">Graphs</option>
-                <option value="dynamic_programming">Dynamic Programming</option>
-                <option value="greedy">Greedy</option>
-                <option value="backtracking">Backtracking</option>
-                <option value="heaps">Heaps</option>
-                <option value="intervals">Intervals</option>
-                {!MODE_META[mode].blocksMixed && (
-                  <option value="mixed">Mixed (Surprise me)</option>
+                  </div>
                 )}
-              </select>
-              {MODE_META[mode].blocksMixed && (
-                <p className="text-[11px] text-amber-400/80 flex items-center space-x-1">
-                  <AlertCircle className="w-3 h-3" />
-                  <span>Topic Mastery requires a specific category — Mixed is unavailable.</span>
-                </p>
-              )}
-            </div>
-          )}
 
-          {/* Difficulty & Style Grid */}
-          <div className="grid grid-cols-2 gap-4">
-            {source !== "leetcode" && (
-              <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                  Difficulty
-                </label>
-                <select
-                  value={difficulty}
-                  disabled={source === "adaptive"}
-                  onChange={(e) => setDifficulty(e.target.value as InterviewDifficulty)}
-                  className="w-full bg-[#18181c] border border-[#27272a] rounded-md px-3 py-2 text-xs text-zinc-200 outline-none focus:border-indigo-500 transition-colors disabled:opacity-50"
-                >
-                  {source === "adaptive" ? (
-                    <option value="adaptive">Adaptive (Calculated from Weaknesses)</option>
-                  ) : (
-                    <>
-                      <option value="easy">Easy</option>
-                      <option value="medium">Medium</option>
-                      <option value="hard">Hard</option>
-                    </>
-                  )}
-                </select>
+                <div>
+                  <label className="text-[12px] text-[#A59E91] block mb-1">
+                    Problem statement (populated or paste manually)
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={leetcodeStatement}
+                    onChange={(e) => setLeetcodeStatement(e.target.value)}
+                    placeholder="Problem description, examples, and constraints..."
+                    className="w-full bg-[#12110F] border border-[#6B645A] rounded-[4px] p-2.5 text-13 text-[#ECE6DA] font-mono placeholder-[#6B645A] outline-none resize-y"
+                  />
+                </div>
               </div>
             )}
 
-            <div className={`space-y-2 ${source === "leetcode" ? "col-span-2" : ""}`}>
-              <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                Interview Style
-              </label>
-              <select
-                value={style}
-                onChange={(e) => setStyle(e.target.value as InterviewStyle)}
-                className="w-full bg-[#18181c] border border-[#27272a] rounded-md px-3 py-2 text-xs text-zinc-200 outline-none focus:border-indigo-500 transition-colors"
-              >
-                <option value="general">General (Balanced)</option>
-                <option value="google">Google (Probing, terse)</option>
-                <option value="amazon">Amazon (Ownership, edge cases)</option>
-                <option value="meta">Meta (Speed &amp; correctness)</option>
-              </select>
-            </div>
-
-            {/* Language */}
-            <div className="space-y-2 col-span-2">
-              <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                Target Language
-              </label>
-              <select
-                value={language}
-                onChange={(e) => setLanguage(e.target.value as "python" | "java" | "cpp")}
-                className="w-full bg-[#18181c] border border-[#27272a] rounded-md px-3 py-2 text-xs text-zinc-200 outline-none focus:border-indigo-500 transition-colors"
-              >
-                <option value="python">Python 3.12 (Isolated Sandbox)</option>
-                <option value="java">Java 21 Temurin (Isolated Sandbox)</option>
-                <option value="cpp">C++ 20 (g++ -O2 Isolated Sandbox)</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Blind mode notice */}
-          {mode === "blind_mock" && (
-            <div className="flex items-start space-x-2.5 px-3 py-2.5 rounded-md bg-amber-950/30 border border-amber-800/50 text-xs text-amber-300/80">
-              <Eye className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-400" />
-              <span>
-                <strong>Blind Mode active.</strong> Title, category, difficulty and complexity
-                expectations will be stripped from all API responses server-side.
-              </span>
-            </div>
-          )}
-
-          {/* Execution Environment Info */}
-          <div className="p-3 rounded-md bg-[#0e0e11] border border-[#27272a] flex items-center justify-between text-xs font-mono text-zinc-400">
-            <div className="flex items-center space-x-2">
-              <Shield className="w-3.5 h-3.5 text-emerald-400" />
-              <span>
-                {language === "python" && "Python 3.12 (CPython Ephemeral Runner)"}
-                {language === "java" && "Java 21 (Temurin Alpine Runner)"}
-                {language === "cpp" && "C++ 20 (Alpine g++ Runner)"}
-              </span>
-            </div>
-            <div className="flex items-center space-x-1.5 text-zinc-400">
-              <Clock className="w-3.5 h-3.5" />
-              <span>20:00 Fixed</span>
-            </div>
-          </div>
-
-          {/* Start Button */}
-          <button
-            type="submit"
-            disabled={isGenerating}
-            className="w-full flex items-center justify-center space-x-2 py-2.5 rounded-md bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium text-xs transition-colors shadow-lg shadow-indigo-600/20"
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>{statusMessage || "Validating problem in sandbox..."}</span>
-              </>
-            ) : (
-              <>
-                <span>Launch Interview Session</span>
-                <ArrowRight className="w-4 h-4" />
-              </>
+            {/* Source Specific Inputs: Custom */}
+            {source === "custom" && (
+              <div className="p-4 rounded-[4px] bg-[#1A1815] border border-[#332E28] space-y-3">
+                <div className="text-13 font-medium text-[#ECE6DA]">Custom problem specification</div>
+                <div>
+                  <label className="text-[12px] text-[#A59E91] block mb-1">Problem statement and examples</label>
+                  <textarea
+                    rows={4}
+                    value={customStatement}
+                    onChange={(e) => setCustomStatement(e.target.value)}
+                    placeholder="Describe inputs, outputs, expectations, and examples..."
+                    className="w-full bg-[#12110F] border border-[#6B645A] rounded-[4px] p-2.5 text-13 text-[#ECE6DA] font-mono placeholder-[#6B645A] outline-none resize-y"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[12px] text-[#A59E91] block mb-1">Source URL (optional)</label>
+                    <input
+                      type="text"
+                      value={customUrl}
+                      onChange={(e) => setCustomUrl(e.target.value)}
+                      placeholder="https://..."
+                      className="w-full bg-[#12110F] border border-[#6B645A] rounded-[4px] px-2.5 py-1.5 text-13 text-[#ECE6DA] outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[12px] text-[#A59E91] block mb-1">Extra constraints (optional)</label>
+                    <input
+                      type="text"
+                      value={customConstraints}
+                      onChange={(e) => setCustomConstraints(e.target.value)}
+                      placeholder="e.g. N <= 10^5, O(N)"
+                      className="w-full bg-[#12110F] border border-[#6B645A] rounded-[4px] px-2.5 py-1.5 text-13 text-[#ECE6DA] outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
             )}
-          </button>
+
+            {/* Source Notice: Adaptive */}
+            {source === "adaptive" && (
+              <div className="p-3.5 rounded-[4px] bg-[#1A1815] border border-[#332E28] text-13 text-[#A59E91]">
+                Target category and difficulty are determined mathematically from stored evaluation score gaps across completed interviews.
+              </div>
+            )}
+
+            {/* 2. Problem Framing Segmented Control (Random DSA & LeetCode) */}
+            {(source === "random_dsa" || source === "leetcode") && (
+              <div className="space-y-2">
+                <label className="text-13 text-[#A59E91] block">Problem framing</label>
+                <div className="grid grid-cols-2 gap-1.5 p-1 rounded-[4px] bg-[#1A1815] border border-[#332E28]">
+                  {FRAMINGS.map((f) => {
+                    const isActive = framing === f.id;
+                    return (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => setFraming(f.id)}
+                        className={`px-3 py-2 text-left rounded-[3px] text-13 transition-all ${
+                          isActive
+                            ? "bg-[#221F1B] text-[#ECE6DA] border border-[#6B645A] font-medium"
+                            : "text-[#A59E91] hover:text-[#ECE6DA] hover:bg-[#221F1B]/40"
+                        }`}
+                      >
+                        <div className="font-medium">{f.label}</div>
+                        <div className="text-[11px] text-[#A59E91] truncate mt-0.5">{f.desc}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* 3. Interview Mode Segmented Control */}
+            <div className="space-y-2">
+              <label className="text-13 text-[#A59E91] block">Interview mode</label>
+              <div className="grid grid-cols-2 gap-1.5 p-1 rounded-[4px] bg-[#1A1815] border border-[#332E28]">
+                {MODES.map((m) => {
+                  const isActive = mode === m.id;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => handleModeChange(m.id)}
+                      className={`px-3 py-2 text-left rounded-[3px] text-13 transition-all ${
+                        isActive
+                          ? "bg-[#221F1B] text-[#ECE6DA] border border-[#6B645A] font-medium"
+                          : "text-[#A59E91] hover:text-[#ECE6DA] hover:bg-[#221F1B]/40"
+                      }`}
+                    >
+                      <div className="font-medium">{m.label}</div>
+                      <div className="text-[11px] text-[#A59E91] truncate mt-0.5">{m.desc}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 4. Plain Selects Below */}
+            <div className="pt-2 border-t border-[#332E28] space-y-4">
+              {/* Show Category ONLY when Topic Mastery needs it */}
+              {mode === "topic_mastery" && (
+                <div className="space-y-1.5">
+                  <label className="text-13 text-[#A59E91] block">Topic category</label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value as InterviewCategory)}
+                    className="w-full bg-[#1A1815] border border-[#6B645A] rounded-[4px] px-3 py-2 text-13 text-[#ECE6DA] outline-none"
+                  >
+                    <option value="arrays_hashing">Arrays & Hashing</option>
+                    <option value="two_pointers">Two Pointers</option>
+                    <option value="sliding_window">Sliding Window</option>
+                    <option value="binary_search">Binary Search</option>
+                    <option value="stack_queue">Stack & Queue</option>
+                    <option value="linked_lists">Linked Lists</option>
+                    <option value="trees">Trees</option>
+                    <option value="graphs">Graphs</option>
+                    <option value="dynamic_programming">Dynamic Programming</option>
+                    <option value="greedy">Greedy</option>
+                    <option value="backtracking">Backtracking</option>
+                    <option value="heaps">Heaps</option>
+                    <option value="intervals">Intervals</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Difficulty (only if not LeetCode or Adaptive) */}
+              {source !== "leetcode" && source !== "adaptive" && (
+                <div className="space-y-1.5">
+                  <label className="text-13 text-[#A59E91] block">Difficulty</label>
+                  <select
+                    value={difficulty}
+                    onChange={(e) => setDifficulty(e.target.value as InterviewDifficulty)}
+                    className="w-full bg-[#1A1815] border border-[#6B645A] rounded-[4px] px-3 py-2 text-13 text-[#ECE6DA] outline-none"
+                  >
+                    <option value="easy">Easy</option>
+                    <option value="medium">Medium</option>
+                    <option value="hard">Hard</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Style & Language */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-13 text-[#A59E91] block">Interviewer style</label>
+                  <select
+                    value={style}
+                    onChange={(e) => setStyle(e.target.value as InterviewStyle)}
+                    className="w-full bg-[#1A1815] border border-[#6B645A] rounded-[4px] px-3 py-2 text-13 text-[#ECE6DA] outline-none"
+                  >
+                    <option value="general">General (balanced)</option>
+                    <option value="google">Google (probing, terse)</option>
+                    <option value="amazon">Amazon (ownership, edge cases)</option>
+                    <option value="meta">Meta (speed & correctness)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-13 text-[#A59E91] block">Programming language</label>
+                  <select
+                    value={language}
+                    onChange={(e) => setLanguage(e.target.value as "python" | "java" | "cpp")}
+                    className="w-full bg-[#1A1815] border border-[#6B645A] rounded-[4px] px-3 py-2 text-13 text-[#ECE6DA] outline-none font-mono"
+                  >
+                    <option value="python">Python 3.12</option>
+                    <option value="java">Java 21</option>
+                    <option value="cpp">C++ 20</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column: Sticky Session Ticket (5 cols) */}
+          <div className="md:col-span-5 md:sticky md:top-8">
+            <div className="p-5 rounded-[10px] bg-[#1A1815] border border-[#332E28] space-y-6">
+              <div>
+                <div className="text-[11px] font-mono uppercase tracking-wider text-[#A59E91]">
+                  Session Ticket
+                </div>
+                <div className="font-display text-28 text-[#ECE6DA] mt-0.5">
+                  20:00 Authoritative
+                </div>
+              </div>
+
+              {/* Identity Motif: Preview of Stage Rail with 20:00 on it */}
+              <div className="pt-2 pb-2">
+                <StageRail
+                  currentStage={1}
+                  formattedTime="20:00"
+                  progressRatio={0}
+                  mode="preview"
+                />
+              </div>
+
+              {/* Ticket Specification Summary */}
+              <div className="space-y-2 pt-3 border-t border-[#332E28] text-13 font-mono">
+                <div className="flex justify-between py-0.5">
+                  <span className="text-[#A59E91]">Source</span>
+                  <span className="text-[#ECE6DA]">{selectedSourceLabel}</span>
+                </div>
+                <div className="flex justify-between py-0.5">
+                  <span className="text-[#A59E91]">Framing</span>
+                  <span className="text-[#ECE6DA]">{selectedFramingLabel}</span>
+                </div>
+                <div className="flex justify-between py-0.5">
+                  <span className="text-[#A59E91]">Mode</span>
+                  <span className="text-[#ECE6DA]">{selectedModeLabel}</span>
+                </div>
+                {mode === "topic_mastery" && (
+                  <div className="flex justify-between py-0.5">
+                    <span className="text-[#A59E91]">Category</span>
+                    <span className="text-[#ECE6DA] capitalize">{category.replace("_", " ")}</span>
+                  </div>
+                )}
+                <div className="flex justify-between py-0.5">
+                  <span className="text-[#A59E91]">Language</span>
+                  <span className="text-[#ECE6DA] uppercase">{language}</span>
+                </div>
+                <div className="flex justify-between py-0.5">
+                  <span className="text-[#A59E91]">Sandbox</span>
+                  <span className="text-[#ECE6DA]">Isolated ephemeral</span>
+                </div>
+              </div>
+
+              {/* Single Amber Action: Start button */}
+              <div className="pt-3">
+                <button
+                  type="submit"
+                  disabled={isGenerating}
+                  className="w-full py-3 px-4 rounded-[4px] bg-[#F5B83D] hover:bg-[#e5aa32] text-[#12110F] font-semibold text-15 tracking-tight transition-colors disabled:opacity-50"
+                >
+                  {isGenerating
+                    ? statusMessage || "Preparing sandbox..."
+                    : "Start 20-minute interview"}
+                </button>
+              </div>
+
+              <div className="text-[12px] text-[#A59E91] text-center leading-relaxed">
+                Stage progression is candidate-driven. Constraints unlock automatically at Stage 3.
+              </div>
+            </div>
+          </div>
         </form>
       </div>
     </div>

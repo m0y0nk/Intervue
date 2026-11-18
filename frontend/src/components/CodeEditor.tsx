@@ -3,8 +3,7 @@ import CodeMirror from "@uiw/react-codemirror";
 import { python } from "@codemirror/lang-python";
 import { java } from "@codemirror/lang-java";
 import { cpp } from "@codemirror/lang-cpp";
-import { Play, CheckCircle2, XCircle, Loader2 } from "lucide-react";
-import { RunCodeResponse, TestResultItem } from "../types";
+import { RunCodeResponse } from "../types";
 
 interface CodeEditorProps {
   initialCode: string;
@@ -27,8 +26,6 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     if (lang === "java") {
       return `import java.util.*;
 
-// Pre-defined ListNode and TreeNode types are available.
-// Keep class Solution public with your member method.
 public class Solution {
     public int[] solution(int[] nums) {
         // Write your solution here
@@ -40,12 +37,7 @@ public class Solution {
     if (lang === "cpp") {
       return `#include <iostream>
 #include <vector>
-#include <string>
-#include <unordered_map>
-#include <algorithm>
 
-// Pre-defined ListNode and TreeNode types are available.
-// Keep class Solution with your public member function.
 class Solution {
 public:
     std::vector<int> solution(std::vector<int>& nums) {
@@ -55,8 +47,7 @@ public:
 };
 `;
     }
-    return `# Pre-defined ListNode and TreeNode classes are available.
-def solution(*args):
+    return `def solution(*args):
     # Write your solution here
     pass
 `;
@@ -67,16 +58,14 @@ def solution(*args):
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [lastSavedCode, setLastSavedCode] = useState<string>(effectiveInitial);
   const [runResults, setRunResults] = useState<RunCodeResponse | null>(null);
-  const [activeTab, setActiveTab] = useState<"editor" | "results">("editor");
+  const [showDrawer, setShowDrawer] = useState<boolean>(false);
 
   const codeRef = useRef<string>(effectiveInitial);
   const lastSavedCodeRef = useRef<string>(effectiveInitial);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Sync initialCode only when initialCode changes and user is not actively editing unsaved changes
   useEffect(() => {
     if (initialCode && initialCode.trim()) {
-      // Only overwrite if code is currently empty or matches what was previously saved
       if (!codeRef.current || codeRef.current === lastSavedCodeRef.current) {
         setCode(initialCode);
         codeRef.current = initialCode;
@@ -93,10 +82,8 @@ def solution(*args):
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
-
     setIsSaving(true);
 
-    // Debounce autosave: 1.5 seconds after candidate stops typing
     saveTimeoutRef.current = setTimeout(async () => {
       try {
         await onCodeChange(val);
@@ -105,11 +92,12 @@ def solution(*args):
       } finally {
         setIsSaving(false);
       }
-    }, 1500);
+    }, 1200);
   };
 
   const handleRun = async () => {
-    // Flush any pending save immediately before running
+    if (isRunning || rateLimitSecondsLeft > 0) return;
+
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
       saveTimeoutRef.current = null;
@@ -121,10 +109,10 @@ def solution(*args):
       setIsSaving(false);
     }
 
+    setShowDrawer(true);
     try {
       const res = await onRunCode();
       setRunResults(res);
-      setActiveTab("results");
     } catch (e: any) {
       setRunResults({
         status: "runtime_error",
@@ -132,222 +120,193 @@ def solution(*args):
         results: [],
         stdout: "",
         stderr: "",
-        error: e.message || "Run failed",
+        error: e.message || "Execution error",
       });
-      setActiveTab("results");
     }
   };
 
-  // Flush on unmount
+  // Keyboard shortcut: Ctrl+Enter or Cmd+Enter to run code
   useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        handleRun();
       }
-      if (codeRef.current !== lastSavedCodeRef.current) {
-        onCodeChange(codeRef.current);
-        lastSavedCodeRef.current = codeRef.current;
+      if (e.key === "Escape" && showDrawer) {
+        setShowDrawer(false);
       }
     };
-  }, []);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isRunning, rateLimitSecondsLeft, showDrawer]);
 
   return (
-    <div className="flex flex-col h-full bg-[#0d0d10] border border-[#27272a] rounded-lg overflow-hidden">
-      {/* Editor Header */}
-      <div className="flex items-center justify-between border-b border-[#27272a] bg-[#121215] px-3 py-2 text-xs">
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={() => setActiveTab("editor")}
-            className={`px-2.5 py-1 rounded font-medium transition-colors ${
-              activeTab === "editor"
-                ? "bg-[#1f1f23] text-zinc-100"
-                : "text-zinc-400 hover:text-zinc-200"
-            }`}
-          >
-            {language === "java" ? "Solution.java" : language === "cpp" ? "solution.cpp" : "solution.py"}
-          </button>
-          <button
-            onClick={() => setActiveTab("results")}
-            className={`px-2.5 py-1 rounded font-medium transition-colors flex items-center space-x-1.5 ${
-              activeTab === "results"
-                ? "bg-[#1f1f23] text-zinc-100"
-                : "text-zinc-400 hover:text-zinc-200"
-            }`}
-          >
-            <span>Test Results</span>
-            {runResults && (
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  runResults.all_passed ? "bg-emerald-400" : "bg-red-400"
-                }`}
-              />
-            )}
-          </button>
+    <div className="flex flex-col h-full bg-[#221F1B] border border-[#332E28] rounded-[10px] overflow-hidden relative">
+      {/* Editor Sub-Bar */}
+      <div className="flex items-center justify-between border-b border-[#332E28] px-3.5 py-2 text-13 bg-[#1A1815]">
+        <div className="flex items-center space-x-2 font-mono text-[12px] text-[#A59E91]">
+          <span>{language === "java" ? "Solution.java" : language === "cpp" ? "solution.cpp" : "solution.py"}</span>
+          <span>·</span>
+          <span>{isSaving ? "Saving..." : "Saved"}</span>
         </div>
 
-        {/* Right side: Save indicator & Run Button */}
         <div className="flex items-center space-x-3">
-          <div className="w-16 text-right text-[11px] font-mono select-none flex items-center justify-end">
-            {isSaving ? (
-              <span className="flex items-center text-amber-400/90">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 mr-1.5 animate-pulse" />
-                Saving
-              </span>
-            ) : (
-              <span className="text-zinc-500">Saved</span>
-            )}
-          </div>
-
           {rateLimitSecondsLeft > 0 && (
-            <span className="text-[11px] text-zinc-500 font-mono">
+            <span className="text-[11px] font-mono text-[#A59E91]">
               Wait {rateLimitSecondsLeft.toFixed(1)}s
             </span>
           )}
+
+          {runResults && (
+            <button
+              type="button"
+              onClick={() => setShowDrawer(!showDrawer)}
+              className="text-13 text-[#A59E91] hover:text-[#ECE6DA] transition-colors"
+            >
+              {showDrawer ? "Hide results" : "View results"}
+            </button>
+          )}
+
+          {/* Action: Run Code in amber #F5B83D with text #12110F */}
           <button
+            type="button"
             onClick={handleRun}
             disabled={isRunning || rateLimitSecondsLeft > 0}
-            className="flex items-center space-x-1.5 px-3 py-1 rounded bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 disabled:hover:bg-zinc-800 text-zinc-100 font-medium transition-colors"
+            className="px-3 py-1.5 rounded-[4px] bg-[#F5B83D] hover:bg-[#e5aa32] text-[#12110F] text-13 font-semibold disabled:opacity-40 transition-colors"
           >
-            {isRunning ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-300" />
-            ) : (
-              <Play className="w-3.5 h-3.5 text-emerald-400 fill-emerald-400" />
-            )}
-            <span>Run Code</span>
+            {isRunning ? "Running..." : "Run code"}
           </button>
         </div>
       </div>
 
-      {/* Editor or Results Display */}
-      <div className="flex-1 relative overflow-hidden">
-        {activeTab === "editor" ? (
-          <CodeMirror
-            value={code}
-            height="100%"
-            theme="dark"
-            extensions={language === "java" ? [java()] : language === "cpp" ? [cpp()] : [python()]}
-            onChange={handleChange}
-            basicSetup={{
-              lineNumbers: true,
-              highlightActiveLineGutter: true,
-              foldGutter: false,
-              dropCursor: false,
-              allowMultipleSelections: false,
-              indentOnInput: false,
-              bracketMatching: false,
-              closeBrackets: false,
-              autocompletion: false, // CRITICAL: Disabled completely
-              highlightSpecialChars: false,
-              history: true,
-              drawSelection: true,
-              syntaxHighlighting: true,
-              defaultKeymap: true,
-              searchKeymap: true,
-              historyKeymap: true,
-              lintKeymap: false,
-              completionKeymap: false, // CRITICAL: Disabled completely
-            }}
-            className="h-full font-mono text-xs"
-          />
-        ) : (
-          <div className="h-full overflow-y-auto p-4 space-y-4 text-xs font-mono">
-            {!runResults ? (
-              <div className="text-zinc-500 text-center py-8">
-                Click "Run Code" above to execute your solution against visible example test cases.
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {/* Status Banner */}
-                <div
-                  className={`p-3 rounded border flex items-center justify-between ${
-                    runResults.all_passed
-                      ? "bg-emerald-950/40 border-emerald-800/60 text-emerald-300"
-                      : "bg-red-950/40 border-red-800/60 text-red-300"
-                  }`}
-                >
-                  <div className="flex items-center space-x-2">
-                    {runResults.all_passed ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    ) : (
-                      <XCircle className="w-4 h-4 text-red-400" />
-                    )}
-                    <span className="font-semibold uppercase tracking-wider text-xs">
-                      {runResults.all_passed ? "All Visible Tests Passed" : "Tests Failed"}
+      {/* CodeMirror Raised Area */}
+      <div className="flex-1 overflow-hidden relative">
+        <CodeMirror
+          value={code}
+          height="100%"
+          theme="dark"
+          extensions={language === "java" ? [java()] : language === "cpp" ? [cpp()] : [python()]}
+          onChange={handleChange}
+          basicSetup={{
+            lineNumbers: true,
+            highlightActiveLineGutter: true,
+            foldGutter: false,
+            dropCursor: false,
+            allowMultipleSelections: false,
+            indentOnInput: false,
+            bracketMatching: false,
+            closeBrackets: false,
+            autocompletion: false,
+            highlightSpecialChars: false,
+            history: true,
+            drawSelection: true,
+            syntaxHighlighting: true,
+            defaultKeymap: true,
+            searchKeymap: true,
+            historyKeymap: true,
+            lintKeymap: false,
+            completionKeymap: false,
+          }}
+          className="h-full font-mono text-13"
+        />
+
+        {/* Bottom Drawer: Execution Results */}
+        {showDrawer && (
+          <div className="absolute inset-x-0 bottom-0 max-h-[55%] flex flex-col bg-[#1A1815] border-t border-[#332E28] z-20">
+            <div className="px-3.5 py-2 border-b border-[#332E28] flex items-center justify-between text-13 bg-[#12110F]">
+              <span className="font-medium text-[#ECE6DA]">Test execution results</span>
+              <button
+                onClick={() => setShowDrawer(false)}
+                className="text-13 text-[#A59E91] hover:text-[#ECE6DA]"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="p-3.5 overflow-y-auto space-y-3 font-mono text-13">
+              {isRunning && (
+                <div className="text-[#A59E91]">Running test cases in sandbox...</div>
+              )}
+
+              {!isRunning && !runResults && (
+                <div className="text-[#A59E91]">Run code to view test execution outputs.</div>
+              )}
+
+              {!isRunning && runResults && (
+                <>
+                  {/* Overall Summary */}
+                  <div className="flex items-center space-x-2 text-13">
+                    <span
+                      className={`font-semibold ${
+                        runResults.all_passed ? "text-[#7BD88F]" : "text-[#FF7A6E]"
+                      }`}
+                    >
+                      {runResults.all_passed ? "All tests passed" : "Tests failed"}
                     </span>
+                    <span className="text-[#A59E91]">({runResults.status})</span>
                   </div>
-                  <span className="text-[11px] opacity-80">
-                    Status: {runResults.status}
-                  </span>
-                </div>
 
-                {/* Error Banner if any */}
-                {runResults.error && (
-                  <div className="p-3 rounded bg-red-950/30 border border-red-900/40 text-red-300 text-xs whitespace-pre-wrap">
-                    {runResults.error}
-                  </div>
-                )}
-                {runResults.compile_error && (
-                  <div className="p-3 rounded bg-red-950/30 border border-red-900/40 text-red-300 text-xs whitespace-pre-wrap">
-                    {runResults.compile_error}
-                  </div>
-                )}
-
-                {/* Results list */}
-                {runResults.results.map((res: TestResultItem, idx: number) => (
-                  <div
-                    key={idx}
-                    className={`p-3 rounded border ${
-                      res.passed
-                        ? "bg-[#121215] border-[#27272a]"
-                        : "bg-red-950/20 border-red-900/40"
-                    } space-y-2`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-zinc-400">Test Case {idx + 1}</span>
-                      <span
-                        className={`text-[11px] px-1.5 py-0.5 rounded font-bold ${
-                          res.passed
-                            ? "bg-emerald-950/60 text-emerald-400 border border-emerald-800/60"
-                            : "bg-red-950/60 text-red-400 border border-red-800/60"
-                        }`}
-                      >
-                        {res.passed ? "PASSED" : "FAILED"}
-                      </span>
+                  {/* Errors if any */}
+                  {runResults.error && (
+                    <div className="p-2.5 rounded-[4px] bg-[#12110F] border border-[#FF7A6E] text-[#FF7A6E] text-13 whitespace-pre-wrap">
+                      {runResults.error}
                     </div>
+                  )}
 
-                    <div className="space-y-1 text-xs">
-                      <div className="flex">
-                        <span className="text-zinc-500 w-20 shrink-0">Input:</span>
-                        <span className="text-zinc-200">{JSON.stringify(res.input)}</span>
-                      </div>
-                      <div className="flex">
-                        <span className="text-zinc-500 w-20 shrink-0">Expected:</span>
-                        <span className="text-emerald-400">{JSON.stringify(res.expected)}</span>
-                      </div>
-                      <div className="flex">
-                        <span className="text-zinc-500 w-20 shrink-0">Actual:</span>
-                        <span className={res.passed ? "text-emerald-400" : "text-red-400"}>
-                          {res.actual !== undefined ? JSON.stringify(res.actual) : "None"}
-                        </span>
-                      </div>
-                      {res.error && (
-                        <div className="text-red-400 pt-1 text-[11px]">{res.error}</div>
-                      )}
+                  {runResults.compile_error && (
+                    <div className="p-2.5 rounded-[4px] bg-[#12110F] border border-[#FF7A6E] text-[#FF7A6E] text-13 whitespace-pre-wrap">
+                      {runResults.compile_error}
                     </div>
-                  </div>
-                ))}
+                  )}
 
-                {/* Stdout if present */}
-                {runResults.stdout && (
-                  <div className="space-y-1">
-                    <span className="text-zinc-500 text-[11px]">Standard Output:</span>
-                    <pre className="p-2.5 rounded bg-[#070709] border border-[#27272a] text-zinc-300 text-xs overflow-x-auto">
-                      {runResults.stdout}
-                    </pre>
-                  </div>
-                )}
-              </div>
-            )}
+                  {/* Test case rows */}
+                  {runResults.results && runResults.results.length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      {runResults.results.map((r, i) => (
+                        <div
+                          key={i}
+                          className="p-2 rounded-[4px] bg-[#12110F] border border-[#332E28] text-13 flex flex-col space-y-1"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-[#A59E91]">Test case {i + 1}</span>
+                            <span
+                              className={`font-medium ${
+                                r.passed ? "text-[#7BD88F]" : "text-[#FF7A6E]"
+                              }`}
+                            >
+                              {r.passed ? "Pass" : "Fail"}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-[#A59E91]">Input: </span>
+                            <span className="text-[#ECE6DA]">{JSON.stringify(r.input)}</span>
+                          </div>
+                          <div>
+                            <span className="text-[#A59E91]">Expected: </span>
+                            <span className="text-[#ECE6DA]">{JSON.stringify(r.expected)}</span>
+                          </div>
+                          <div>
+                            <span className="text-[#A59E91]">Actual: </span>
+                            <span className={r.passed ? "text-[#7BD88F]" : "text-[#FF7A6E]"}>
+                              {r.actual !== undefined ? JSON.stringify(r.actual) : "None"}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {runResults.stdout && (
+                    <div className="pt-2">
+                      <div className="text-[11px] text-[#A59E91] mb-1">Standard Output:</div>
+                      <pre className="p-2 bg-[#12110F] border border-[#332E28] rounded-[4px] text-[12px] text-[#ECE6DA] whitespace-pre-wrap">
+                        {runResults.stdout}
+                      </pre>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         )}
       </div>

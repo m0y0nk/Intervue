@@ -1,16 +1,4 @@
 import React from "react";
-import {
-  CheckCircle2,
-  AlertCircle,
-  RefreshCw,
-  Award,
-  TrendingUp,
-  TrendingDown,
-  Minus,
-  Sparkles,
-  GitCompare,
-  LayoutDashboard,
-} from "lucide-react";
 import { FinalEvaluationReport } from "../types";
 
 interface EvaluationReportProps {
@@ -24,216 +12,204 @@ export const EvaluationReport: React.FC<EvaluationReportProps> = ({
   onNewInterview,
   onViewDashboard,
 }) => {
-  const getVerdictStyle = (v: string) => {
+  const getVerdictColor = (v: string) => {
     switch (v) {
       case "strong_hire":
-        return "bg-emerald-950/80 text-emerald-400 border-emerald-700";
       case "hire":
-        return "bg-blue-950/80 text-blue-400 border-blue-700";
+        return "text-[#7BD88F] border-[#7BD88F]/40";
       case "borderline":
-        return "bg-amber-950/80 text-amber-400 border-amber-700";
+        return "text-[#F5B83D] border-[#F5B83D]/40";
       default:
-        return "bg-red-950/80 text-red-400 border-red-700";
+        return "text-[#FF7A6E] border-[#FF7A6E]/40";
     }
+  };
+
+  const formatVerdict = (v: string) => {
+    return v.replace(/_/g, " ").toLowerCase();
   };
 
   const rev = report.revision_comparison;
 
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4 space-y-6 text-zinc-100">
-      {/* Top Banner */}
-      <div className="flex items-center justify-between border-b border-[#27272a] pb-6">
+    <div className="max-w-4xl mx-auto py-10 px-4 space-y-8 text-[#ECE6DA] font-sans">
+      {/* Top Header */}
+      <div className="flex items-baseline justify-between border-b border-[#332E28] pb-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Interview Evaluation Report</h1>
-          <p className="text-zinc-400 text-xs mt-1 font-mono">Session ID: {report.session_id}</p>
+          <h1 className="font-serif text-[28px] font-normal tracking-tight text-[#ECE6DA]">
+            Interview Evaluation Report
+          </h1>
+          <p className="text-[#A59E91] text-[13px] mt-1 font-mono">
+            Session: {report.session_id}
+          </p>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-3">
           {onViewDashboard && (
             <button
               onClick={onViewDashboard}
-              className="flex items-center space-x-2 px-3 py-2 rounded-md bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-zinc-200 transition-colors border border-zinc-700"
+              className="px-3 py-1.5 rounded-[4px] border border-[#332E28] text-[13px] text-[#A59E91] hover:text-[#ECE6DA] hover:bg-[#1A1815] transition-colors"
             >
-              <LayoutDashboard className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Dashboard</span>
+              Dashboard
             </button>
           )}
           <button
             onClick={onNewInterview}
-            className="flex items-center space-x-2 px-4 py-2 rounded-md bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white transition-colors shadow-lg shadow-indigo-600/20"
+            className="px-3.5 py-1.5 rounded-[4px] bg-[#F5B83D] hover:bg-[#F5B83D]/90 text-[#12110F] text-[13px] font-medium transition-colors"
           >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>New Interview</span>
+            New interview
           </button>
         </div>
       </div>
 
-      {/* Revision Comparison Card (if in revision mode) */}
+      {/* Revision Comparison Card */}
       {rev && (
-        <div className="p-5 rounded-lg bg-[#15151c] border border-indigo-900/60 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <GitCompare className="w-4 h-4 text-indigo-400" />
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-indigo-300">
-                Revision Mode: Comparison vs Prior Attempt
-              </h2>
-            </div>
-            <span className="text-[11px] font-mono text-zinc-400">
+        <div className="p-5 rounded-[10px] bg-[#1A1815] border border-[#332E28] space-y-4">
+          <div className="flex items-center justify-between text-[13px]">
+            <span className="font-medium text-[#ECE6DA]">Revision comparison</span>
+            <span className="font-mono text-[11px] text-[#A59E91]">
               Prior: {rev.prior_session_id}
             </span>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
-            <div className="p-3 rounded bg-[#0f0f13] border border-zinc-800">
-              <span className="text-[10px] text-zinc-400 block mb-1">Score Progress</span>
+            <div className="p-3 rounded-[4px] bg-[#12110F] border border-[#332E28]">
+              <span className="text-[11px] text-[#A59E91] block mb-1">Score progress</span>
               <div className="flex items-baseline space-x-2">
-                <span className="text-lg font-bold text-zinc-100">{rev.current_score}</span>
-                <span className="text-xs text-zinc-500">from {rev.prior_score}</span>
+                <span className="text-[18px] font-mono font-medium text-[#ECE6DA]">
+                  {rev.current_score}
+                </span>
+                <span className="text-[11px] text-[#A59E91]">from {rev.prior_score}</span>
                 <span
-                  className={`text-xs font-semibold flex items-center ${
+                  className={`text-[11px] font-mono font-medium ${
                     rev.score_delta > 0
-                      ? "text-emerald-400"
+                      ? "text-[#7BD88F]"
                       : rev.score_delta < 0
-                      ? "text-red-400"
-                      : "text-zinc-400"
+                      ? "text-[#FF7A6E]"
+                      : "text-[#A59E91]"
                   }`}
                 >
-                  {rev.score_delta > 0 ? (
-                    <TrendingUp className="w-3 h-3 mr-0.5" />
-                  ) : rev.score_delta < 0 ? (
-                    <TrendingDown className="w-3 h-3 mr-0.5" />
-                  ) : (
-                    <Minus className="w-3 h-3 mr-0.5" />
-                  )}
                   {rev.score_delta > 0 ? `+${rev.score_delta}` : rev.score_delta}
                 </span>
               </div>
             </div>
 
-            <div className="p-3 rounded bg-[#0f0f13] border border-zinc-800">
-              <span className="text-[10px] text-zinc-400 block mb-1">Verdict Transition</span>
-              <div className="text-xs font-semibold capitalize text-zinc-200">
-                <span className="text-zinc-500">{rev.prior_verdict.replace("_", " ")}</span>
-                <span className="mx-1.5 text-zinc-600">→</span>
-                <span className="text-indigo-300">{rev.current_verdict.replace("_", " ")}</span>
+            <div className="p-3 rounded-[4px] bg-[#12110F] border border-[#332E28]">
+              <span className="text-[11px] text-[#A59E91] block mb-1">Verdict transition</span>
+              <div className="text-[13px] font-mono text-[#ECE6DA] capitalize">
+                <span className="text-[#A59E91]">{rev.prior_verdict.replace(/_/g, " ")}</span>
+                <span className="mx-2 text-[#6B645A]">→</span>
+                <span className="text-[#ECE6DA]">{rev.current_verdict.replace(/_/g, " ")}</span>
               </div>
             </div>
 
-            <div className="p-3 rounded bg-[#0f0f13] border border-zinc-800">
-              <span className="text-[10px] text-zinc-400 block mb-1">Hidden Tests</span>
-              <div className="text-xs font-semibold text-zinc-200">
-                <span className="text-zinc-500">{rev.prior_tests_passed}</span>
-                <span className="mx-1.5 text-zinc-600">→</span>
-                <span className="text-emerald-400 font-bold">{rev.current_tests_passed}</span>
-                <span className="text-zinc-500 font-normal"> / {rev.tests_total}</span>
+            <div className="p-3 rounded-[4px] bg-[#12110F] border border-[#332E28]">
+              <span className="text-[11px] text-[#A59E91] block mb-1">Hidden tests</span>
+              <div className="text-[13px] font-mono text-[#ECE6DA]">
+                <span className="text-[#A59E91]">{rev.prior_tests_passed}</span>
+                <span className="mx-2 text-[#6B645A]">→</span>
+                <span className="text-[#7BD88F] font-medium">{rev.current_tests_passed}</span>
+                <span className="text-[#A59E91]"> / {rev.tests_total}</span>
               </div>
             </div>
           </div>
 
-          <p className="text-xs text-zinc-300 bg-[#0f0f13] p-3 rounded border border-zinc-800/80 leading-relaxed">
+          <p className="text-[13px] text-[#ECE6DA] leading-relaxed p-3 rounded-[4px] bg-[#12110F] border border-[#332E28]">
             {rev.summary}
           </p>
         </div>
       )}
 
-      {/* Primary Verdict & Scores Overview */}
+      {/* Primary Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Total Score */}
-        <div className="p-5 rounded-lg bg-[#121215] border border-[#27272a] flex flex-col justify-between">
-          <span className="text-xs uppercase font-semibold text-zinc-400 tracking-wider">
-            Overall Score
-          </span>
+        <div className="p-5 rounded-[10px] bg-[#1A1815] border border-[#332E28] flex flex-col justify-between">
+          <span className="text-[13px] text-[#A59E91]">Overall score</span>
           <div className="my-3 flex items-baseline space-x-2">
-            <span className="text-4xl font-extrabold text-zinc-50">{report.total_score}</span>
-            <span className="text-zinc-500 text-sm font-medium">/ 10.0</span>
+            <span className="font-serif text-[44px] leading-none text-[#ECE6DA]">
+              {report.total_score}
+            </span>
+            <span className="text-[#A59E91] text-[13px] font-mono">/ 10.0</span>
           </div>
-          <span className="text-xs text-zinc-400">Weighted according to interview style</span>
+          <span className="text-[11px] text-[#A59E91]">Weighted by selected interview style</span>
         </div>
 
         {/* Verdict */}
-        <div className="p-5 rounded-lg bg-[#121215] border border-[#27272a] flex flex-col justify-between">
-          <span className="text-xs uppercase font-semibold text-zinc-400 tracking-wider">
-            Hiring Verdict
-          </span>
+        <div className="p-5 rounded-[10px] bg-[#1A1815] border border-[#332E28] flex flex-col justify-between">
+          <span className="text-[13px] text-[#A59E91]">Hiring recommendation</span>
           <div className="my-3">
             <span
-              className={`text-base font-bold uppercase tracking-wider px-3 py-1.5 rounded border inline-block ${getVerdictStyle(
+              className={`text-[15px] font-medium capitalize px-3 py-1 rounded-[4px] border ${getVerdictColor(
                 report.verdict
               )}`}
             >
-              {report.verdict.replace("_", " ")}
+              {formatVerdict(report.verdict)}
             </span>
           </div>
-          <span className="text-xs text-zinc-400">Fixed numeric benchmark evaluation</span>
+          <span className="text-[11px] text-[#A59E91]">Evaluated against rubric anchors</span>
         </div>
 
         {/* Hidden Test Accuracy */}
-        <div className="p-5 rounded-lg bg-[#121215] border border-[#27272a] flex flex-col justify-between">
-          <span className="text-xs uppercase font-semibold text-zinc-400 tracking-wider">
-            Hidden Test Accuracy
-          </span>
+        <div className="p-5 rounded-[10px] bg-[#1A1815] border border-[#332E28] flex flex-col justify-between">
+          <span className="text-[13px] text-[#A59E91]">Hidden test accuracy</span>
           <div className="my-3 flex items-baseline space-x-2">
-            <span className="text-4xl font-extrabold text-emerald-400">
+            <span className="font-serif text-[44px] leading-none text-[#7BD88F]">
               {report.tests_passed}
             </span>
-            <span className="text-zinc-500 text-sm font-medium">/ {report.tests_total}</span>
+            <span className="text-[#A59E91] text-[13px] font-mono">/ {report.tests_total}</span>
           </div>
-          <span className="text-xs text-zinc-400">Deterministic code execution accuracy</span>
+          <span className="text-[11px] text-[#A59E91]">Verified in isolated runner</span>
         </div>
       </div>
 
       {/* Idea-to-Code Gap Card */}
-      <div className="p-5 rounded-lg bg-[#121215] border border-[#27272a] space-y-3">
+      <div className="p-5 rounded-[10px] bg-[#1A1815] border border-[#332E28] space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-indigo-400 flex items-center space-x-1.5">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Idea-to-Code Gap Analysis</span>
+          <h3 className="text-[13px] font-medium text-[#ECE6DA]">
+            Idea-to-code gap analysis
           </h3>
           {(report.algorithmic_score !== undefined || report.implementation_score !== undefined) && (
-            <div className="flex items-center space-x-3 text-xs font-mono">
-              <span className="text-zinc-400">
-                Algorithmic Reasoning:{" "}
-                <strong className="text-indigo-300">{report.algorithmic_score ?? "-"}</strong>/10
+            <div className="flex items-center space-x-3 text-[11px] font-mono">
+              <span className="text-[#A59E91]">
+                Algorithmic: <span className="text-[#ECE6DA]">{report.algorithmic_score ?? "-"}</span> / 10
               </span>
-              <span className="text-zinc-600">|</span>
-              <span className="text-zinc-400">
-                Implementation:{" "}
-                <strong className="text-emerald-300">{report.implementation_score ?? "-"}</strong>/10
+              <span className="text-[#332E28]">|</span>
+              <span className="text-[#A59E91]">
+                Implementation: <span className="text-[#ECE6DA]">{report.implementation_score ?? "-"}</span> / 10
               </span>
             </div>
           )}
         </div>
-        <p className="text-xs text-zinc-300 leading-relaxed bg-[#0c0c0f] p-3 rounded border border-zinc-800">
+        <p className="text-[13px] text-[#ECE6DA] leading-relaxed p-3.5 rounded-[4px] bg-[#12110F] border border-[#332E28]">
           {report.idea_to_code_gap}
         </p>
       </div>
 
       {/* 10 Dimension Breakdown */}
       <div className="space-y-3">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-          Detailed Anchored Dimension Scores
+        <h3 className="text-[13px] text-[#A59E91]">
+          Anchored dimension breakdown
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {report.dimension_scores.map((dim, idx) => (
             <div
               key={idx}
-              className="p-3.5 rounded-lg bg-[#121215] border border-[#27272a] flex flex-col justify-between space-y-2"
+              className="p-3.5 rounded-[10px] bg-[#1A1815] border border-[#332E28] flex flex-col justify-between space-y-2"
             >
               <div className="flex items-center justify-between">
-                <span className="font-semibold text-xs text-zinc-200">{dim.name}</span>
+                <span className="font-medium text-[13px] text-[#ECE6DA]">{dim.name}</span>
                 <div className="flex items-center space-x-2">
                   {dim.is_deterministic && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 font-mono">
-                      Deterministic
+                    <span className="text-[10px] font-mono text-[#A59E91]">
+                      deterministic
                     </span>
                   )}
-                  <span className="text-xs font-mono font-bold text-zinc-100">
+                  <span className="text-[13px] font-mono font-medium text-[#ECE6DA]">
                     {dim.score.toFixed(1)}
                   </span>
                 </div>
               </div>
-              <p className="text-[11px] text-zinc-400 leading-relaxed">{dim.rationale}</p>
+              <p className="text-[13px] text-[#A59E91] leading-relaxed">{dim.rationale}</p>
               {dim.evidence_quote && (
-                <div className="text-[10px] text-zinc-500 italic border-l-2 border-indigo-700/60 pl-2 mt-1">
+                <div className="text-[11px] text-[#6B645A] italic border-l border-[#332E28] pl-2.5 mt-1 font-mono">
                   &ldquo;{dim.evidence_quote}&rdquo;
                 </div>
               )}
@@ -244,24 +220,22 @@ export const EvaluationReport: React.FC<EvaluationReportProps> = ({
 
       {/* Strengths & Weaknesses */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="p-5 rounded-lg bg-[#121215] border border-[#27272a] space-y-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-emerald-400 flex items-center space-x-1.5">
-            <CheckCircle2 className="w-4 h-4" />
-            <span>Demonstrated Strengths</span>
+        <div className="p-5 rounded-[10px] bg-[#1A1815] border border-[#332E28] space-y-3">
+          <h3 className="text-[13px] font-medium text-[#7BD88F]">
+            Demonstrated strengths
           </h3>
-          <ul className="space-y-2 text-xs text-zinc-300 list-disc list-inside">
+          <ul className="space-y-2 text-[13px] text-[#ECE6DA] list-disc list-inside">
             {report.strengths.map((s, i) => (
               <li key={i}>{s}</li>
             ))}
           </ul>
         </div>
 
-        <div className="p-5 rounded-lg bg-[#121215] border border-[#27272a] space-y-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-amber-400 flex items-center space-x-1.5">
-            <AlertCircle className="w-4 h-4" />
-            <span>Areas for Development</span>
+        <div className="p-5 rounded-[10px] bg-[#1A1815] border border-[#332E28] space-y-3">
+          <h3 className="text-[13px] font-medium text-[#FF7A6E]">
+            Areas for development
           </h3>
-          <ul className="space-y-2 text-xs text-zinc-300 list-disc list-inside">
+          <ul className="space-y-2 text-[13px] text-[#ECE6DA] list-disc list-inside">
             {report.weaknesses.map((w, i) => (
               <li key={i}>{w}</li>
             ))}
@@ -270,12 +244,11 @@ export const EvaluationReport: React.FC<EvaluationReportProps> = ({
       </div>
 
       {/* Actionable Recommendations */}
-      <div className="p-5 rounded-lg bg-[#121215] border border-[#27272a] space-y-3">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-300 flex items-center space-x-1.5">
-          <Award className="w-4 h-4 text-indigo-400" />
-          <span>Actionable Recommendations</span>
+      <div className="p-5 rounded-[10px] bg-[#1A1815] border border-[#332E28] space-y-3">
+        <h3 className="text-[13px] font-medium text-[#ECE6DA]">
+          Actionable recommendations
         </h3>
-        <ul className="space-y-2 text-xs text-zinc-300 list-disc list-inside">
+        <ul className="space-y-2 text-[13px] text-[#ECE6DA] list-disc list-inside">
           {report.recommendations.map((r, i) => (
             <li key={i}>{r}</li>
           ))}

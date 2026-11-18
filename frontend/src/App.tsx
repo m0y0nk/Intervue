@@ -277,7 +277,7 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-zinc-100">
+    <div className="min-h-screen bg-[#12110F] text-[#ECE6DA] font-sans antialiased">
       {currentView === "setup" && (
         <SetupPage
           onStartSession={handleStartSession}
