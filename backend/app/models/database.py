@@ -59,6 +59,9 @@ class SessionModel(Base):
 
     # Current state
     code = Column(Text, default="")
+    is_mock = Column(Boolean, default=False, nullable=False)
+    mock_reason = Column(Text, nullable=True)
+    requested_problem_summary = Column(Text, nullable=True)
     created_at = Column(DateTime, default=utcnow)
 
     problem = relationship("ProblemModel")

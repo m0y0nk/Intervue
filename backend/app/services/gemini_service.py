@@ -55,7 +55,11 @@ class GeminiService:
         """Calls Gemini with structured output, or falls back to mock if not configured."""
         if not self.is_configured():
             logger.info("Gemini not configured; generating schema-compliant mock response.")
-            return self._mock_response(prompt, response_schema)
+            res = self._mock_response(prompt, response_schema)
+            if hasattr(res, "is_mock"):
+                res.is_mock = True
+                res.mock_reason = "Gemini API key is not configured in .env (GEMINI_API_KEY). Offline deterministic mock problem was loaded."
+            return res
 
         # Prepare schema for Gemini Developer API (strips additionalProperties)
         gemini_schema: Any = response_schema
@@ -89,7 +93,11 @@ class GeminiService:
                     await asyncio.sleep(wait_sec)
                     continue
                 logger.warning(f"Gemini call with model '{self.model_name}' failed ({e}); falling back to mock response.")
-                return self._mock_response(prompt, response_schema)
+                res = self._mock_response(prompt, response_schema)
+                if hasattr(res, "is_mock"):
+                    res.is_mock = True
+                    res.mock_reason = f"Gemini API request failed ({err_str}). Offline deterministic mock problem was loaded."
+                return res
 
     async def generate_free_text(
         self,

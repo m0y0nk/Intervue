@@ -482,6 +482,8 @@ class ProblemPublic(BaseModel):
     checker: str = Field(default="exact")  # exact | unordered | float_tolerance(eps)
     category: Optional[str] = None
     difficulty: Optional[str] = None
+    is_mock: bool = Field(default=False)
+    mock_reason: Optional[str] = None
 
 
 class ProblemPublicBlind(BaseModel):
@@ -492,6 +494,8 @@ class ProblemPublicBlind(BaseModel):
     visible_tests: List[TestCaseSchema] = Field(default_factory=list)
     starter_code: Dict[str, str] = Field(default_factory=dict)
     checker: str = Field(default="exact")
+    is_mock: bool = Field(default=False)
+    mock_reason: Optional[str] = None
 
 
 class RubricItem(BaseModel):

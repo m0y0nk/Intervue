@@ -48,6 +48,32 @@ router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 _last_run_timestamps: Dict[str, float] = {}
 
 
+def _compute_requested_summary(
+    session: SessionModel,
+    leetcode_id: Optional[str] = None,
+    custom_url: Optional[str] = None,
+) -> str:
+    src = session.source
+    if src == "leetcode":
+        if leetcode_id and leetcode_id.strip():
+            return f"LeetCode #{leetcode_id.strip()}"
+        return "Pasted LeetCode problem"
+    elif src == "custom":
+        if custom_url and custom_url.strip():
+            return f"Custom problem from {custom_url.strip()}"
+        return "Custom problem statement"
+    elif src == "ai_business":
+        cat = session.category.replace("_", " ").title() if session.category else "Mixed"
+        diff = session.difficulty.title() if session.difficulty else "Medium"
+        return f"AI Business Scenario ({diff} • {cat})"
+    elif src == "adaptive":
+        return "Adaptive Weakness Targeting"
+    else:
+        cat = session.category.replace("_", " ").title() if session.category else "Mixed"
+        diff = session.difficulty.title() if session.difficulty else "Medium"
+        return f"Random DSA ({diff} • {cat})"
+
+
 def _build_public_problem(
     problem_model: ProblemModel, stage: int, mode: str = "standard"
 ) -> Union[ProblemPublic, ProblemPublicBlind]:
@@ -72,6 +98,8 @@ def _build_public_problem(
             visible_tests=priv.visible_tests,
             starter_code=priv.starter_code,
             checker=priv.checker,
+            is_mock=priv.is_mock,
+            mock_reason=priv.mock_reason,
         )
 
     return ProblemPublic(
@@ -86,6 +114,8 @@ def _build_public_problem(
         checker=priv.checker,
         category=priv.category,
         difficulty=priv.difficulty,
+        is_mock=priv.is_mock,
+        mock_reason=priv.mock_reason,
     )
 
 
@@ -151,6 +181,9 @@ def _serialize_session_state(db: Session, session: SessionModel) -> SessionState
             )
         ),
         language=session.language,
+        is_mock=bool(session.is_mock or (public_problem and getattr(public_problem, "is_mock", False))),
+        mock_reason=session.mock_reason or (getattr(public_problem, "mock_reason", None) if public_problem else None),
+        requested_problem_summary=session.requested_problem_summary,
     )
 
 
@@ -216,6 +249,13 @@ async def _async_generate_and_attach_problem(
             custom_extra_constraints=custom_extra_constraints,
         )
 
+        session.requested_problem_summary = _compute_requested_summary(
+            session, leetcode_id=leetcode_id, custom_url=custom_url
+        )
+        if getattr(problem_priv, "is_mock", False):
+            session.is_mock = True
+            session.mock_reason = problem_priv.mock_reason or "Offline deterministic mock problem was loaded."
+
         # Ensure starter templates for all languages are present
         problem_priv.signature = reconcile_signature_with_tests(problem_priv.signature, problem_priv.visible_tests)
         starter_templates = generate_starter_templates(problem_priv.signature, problem_priv.visible_tests)
@@ -241,12 +281,39 @@ async def _async_generate_and_attach_problem(
         logger.info(f"Session {session_id} prepared with problem {problem_model.title}")
 
     except (UnsupportedProblemError, ProblemGenerationError) as e:
-        logger.error(f"Problem generation failed for session {session_id}: {e}")
+        logger.warning(f"Problem generation failed for session {session_id}: {e}; falling back to mock response.")
         session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
         if session:
-            session.status = "abandoned"
-            session.code = str(e)  # Store error for polling endpoint to surface
+            # Fall back to verified deterministic mock problem so user can still practice
+            from ..services.gemini_service import gemini_service
+            mock_priv = gemini_service._mock_response(f"{session.source} {session.category}", ProblemPrivate)
+            mock_priv.is_mock = True
+            mock_priv.mock_reason = f"Could not generate/validate requested problem ({e}). Loaded offline deterministic mock problem."
+
+            mock_priv.signature = reconcile_signature_with_tests(mock_priv.signature, mock_priv.visible_tests)
+            starter_templates = generate_starter_templates(mock_priv.signature, mock_priv.visible_tests)
+            starter_templates.update(mock_priv.starter_code or {})
+            mock_priv.starter_code = starter_templates
+
+            problem_model = ProblemModel(
+                id=mock_priv.id,
+                title=mock_priv.title,
+                fingerprint=mock_priv.fingerprint,
+                category=mock_priv.category or session.category or "arrays_hashing",
+                difficulty=mock_priv.difficulty or session.difficulty or "medium",
+                public_data=json.dumps(mock_priv.model_dump(exclude={"python_reference", "python_brute_force", "hidden_tests", "rubric"})),
+                private_data=json.dumps(mock_priv.model_dump()),
+            )
+            db.merge(problem_model)
+
+            session.problem_id = problem_model.id
+            session.is_mock = True
+            session.mock_reason = f"Generation/validation failed: {e}"
+            session.requested_problem_summary = _compute_requested_summary(session, leetcode_id=leetcode_id, custom_url=custom_url)
+            session.status = "ready"
+            session.code = starter_templates.get(session.language, "")
             db.commit()
+            logger.info(f"Session {session_id} prepared with fallback mock problem '{mock_priv.title}'")
     except Exception as e:
         logger.exception(f"Failed to generate problem for session {session_id}")
         session = db.query(SessionModel).filter(SessionModel.id == session_id).first()
@@ -299,6 +366,16 @@ async def create_session(
         language=cfg.language,
         framing=cfg.framing,
         duration=cfg.duration,
+        requested_problem_summary=_compute_requested_summary(
+            SessionModel(
+                source=cfg.source,
+                mode=cfg.mode,
+                difficulty=cfg.difficulty,
+                category=cfg.category,
+            ),
+            leetcode_id=req.leetcode_id,
+            custom_url=req.custom_url,
+        ),
     )
     db.add(new_session)
     db.commit()

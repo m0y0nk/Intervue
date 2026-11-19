@@ -41,18 +41,18 @@ export const SetupPage: React.FC<SetupPageProps> = ({
   statusMessage,
   onViewDashboard,
 }) => {
-  const [source, setSource] = useState<InterviewSource>("random_dsa");
-  const [framing, setFraming] = useState<"standard" | "business">("standard");
-  const [mode, setMode] = useState<InterviewMode>("standard");
+  const [source, setSource] = useState<InterviewSource>(() => (localStorage.getItem("intervue_last_source") as InterviewSource) || "random_dsa");
+  const [framing, setFraming] = useState<"standard" | "business">(() => (localStorage.getItem("intervue_last_framing") as any) || "standard");
+  const [mode, setMode] = useState<InterviewMode>(() => (localStorage.getItem("intervue_last_mode") as any) || "standard");
 
-  const [category, setCategory] = useState<InterviewCategory>("arrays_hashing");
-  const [difficulty, setDifficulty] = useState<InterviewDifficulty>("medium");
-  const [style, setStyle] = useState<InterviewStyle>("general");
-  const [language, setLanguage] = useState<"python" | "java" | "cpp">("python");
+  const [category, setCategory] = useState<InterviewCategory>(() => (localStorage.getItem("intervue_last_category") as any) || "arrays_hashing");
+  const [difficulty, setDifficulty] = useState<InterviewDifficulty>(() => (localStorage.getItem("intervue_last_difficulty") as any) || "medium");
+  const [style, setStyle] = useState<InterviewStyle>(() => (localStorage.getItem("intervue_last_style") as any) || "general");
+  const [language, setLanguage] = useState<"python" | "java" | "cpp">(() => (localStorage.getItem("intervue_last_language") as any) || "python");
 
   // Source-specific inputs
-  const [leetcodeId, setLeetcodeId] = useState("");
-  const [leetcodeStatement, setLeetcodeStatement] = useState("");
+  const [leetcodeId, setLeetcodeId] = useState(() => localStorage.getItem("intervue_last_lc_id") || "");
+  const [leetcodeStatement, setLeetcodeStatement] = useState(() => localStorage.getItem("intervue_last_lc_stmt") || "");
   const [isFetchingLeetcode, setIsFetchingLeetcode] = useState(false);
   const [leetcodeFetchError, setLeetcodeFetchError] = useState<string | null>(null);
   const [fetchedMeta, setFetchedMeta] = useState<{
@@ -62,9 +62,9 @@ export const SetupPage: React.FC<SetupPageProps> = ({
     tags: string[];
   } | null>(null);
 
-  const [customStatement, setCustomStatement] = useState("");
-  const [customUrl, setCustomUrl] = useState("");
-  const [customConstraints, setCustomConstraints] = useState("");
+  const [customStatement, setCustomStatement] = useState(() => localStorage.getItem("intervue_last_custom_stmt") || "");
+  const [customUrl, setCustomUrl] = useState(() => localStorage.getItem("intervue_last_custom_url") || "");
+  const [customConstraints, setCustomConstraints] = useState(() => localStorage.getItem("intervue_last_custom_constraints") || "");
 
   const [validationError, setValidationError] = useState<string | null>(null);
 
@@ -138,6 +138,22 @@ export const SetupPage: React.FC<SetupPageProps> = ({
       setValidationError("Provide a problem statement for your custom problem (at least 20 characters).");
       return;
     }
+
+    // Save choices to localStorage
+    try {
+      localStorage.setItem("intervue_last_source", source);
+      localStorage.setItem("intervue_last_framing", framing);
+      localStorage.setItem("intervue_last_mode", mode);
+      localStorage.setItem("intervue_last_category", category);
+      localStorage.setItem("intervue_last_difficulty", difficulty);
+      localStorage.setItem("intervue_last_style", style);
+      localStorage.setItem("intervue_last_language", language);
+      localStorage.setItem("intervue_last_lc_id", leetcodeId);
+      localStorage.setItem("intervue_last_lc_stmt", leetcodeStatement);
+      localStorage.setItem("intervue_last_custom_stmt", customStatement);
+      localStorage.setItem("intervue_last_custom_url", customUrl);
+      localStorage.setItem("intervue_last_custom_constraints", customConstraints);
+    } catch {}
 
     try {
       await onStartSession({

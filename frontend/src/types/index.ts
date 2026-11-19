@@ -72,6 +72,8 @@ export interface ProblemPublic {
   checker: string;
   category?: string;
   difficulty?: string;
+  is_mock?: boolean;
+  mock_reason?: string;
 }
 
 export interface SessionState {
@@ -88,6 +90,9 @@ export interface SessionState {
   notes: Record<string, string>;
   code: string;
   language: string;
+  is_mock?: boolean;
+  mock_reason?: string;
+  requested_problem_summary?: string;
 }
 
 export interface ChatMessage {

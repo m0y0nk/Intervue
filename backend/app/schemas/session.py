@@ -55,6 +55,9 @@ class SessionState(BaseModel):
     notes: Dict[str, str] = Field(default_factory=dict)  # stage index -> notes text
     code: str = ""
     language: str = "python"
+    is_mock: bool = False
+    mock_reason: Optional[str] = None
+    requested_problem_summary: Optional[str] = None
 
 
 class NotesUpdateRequest(BaseModel):
