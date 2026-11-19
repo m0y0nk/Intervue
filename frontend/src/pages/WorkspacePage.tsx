@@ -200,30 +200,19 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
       </div>
 
       {/* Main 3-Pane Workspace (28% / 44% / 28%) */}
-      <div className="flex-1 flex overflow-hidden p-2 gap-2 relative">
-        {/* Paused Overlay over work area */}
-        {session.status === "paused" && (
-          <div className="absolute inset-2 z-40 bg-[#12110F]/85 backdrop-blur-xs rounded-[10px] flex flex-col items-center justify-center space-y-4">
-            <span className="font-serif text-[28px] text-[#ECE6DA]">Interview paused</span>
-            <p className="text-[13px] text-[#A59E91] font-mono">
-              Timer stopped at {formattedTime}
-            </p>
-            <button
-              onClick={onResume}
-              className="px-5 py-2 rounded-[4px] bg-[#F5B83D] text-[#12110F] font-medium text-[13px] hover:bg-[#F5B83D]/90 transition-colors"
-            >
-              Resume interview
-            </button>
-          </div>
-        )}
+      <div className="flex-1 flex overflow-hidden p-2 gap-2">
 
         {/* Left Pane: Problem Statement (28%) */}
         <div
-          className={`w-full md:w-[28%] md:min-w-[280px] h-full overflow-hidden bg-[#1A1815] border border-[#332E28] rounded-[10px] p-4 flex flex-col ${
+          className={`w-full md:w-[28%] md:min-w-[280px] h-full overflow-hidden bg-[#1A1815] border border-[#332E28] rounded-[10px] p-4 flex flex-col relative ${
             mobileTab === "problem" ? "flex" : "hidden md:flex"
           }`}
         >
           <ProblemPanel problem={session.problem} stage={session.stage} />
+          {/* Dim problem pane when paused — still readable, not interactive block */}
+          {session.status === "paused" && (
+            <div className="absolute inset-0 rounded-[10px] bg-[#12110F]/60 pointer-events-none" />
+          )}
         </div>
 
         {/* Center Pane: Work Area (44%) */}
@@ -232,7 +221,7 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
             mobileTab === "work" ? "flex" : "hidden md:flex"
           }`}
         >
-          {/* Work Area Header Tab Row */}
+          {/* Work Area Header Tab Row — always accessible */}
           <div className="h-10 border-b border-[#332E28] px-3 flex items-center justify-between shrink-0 bg-[#1A1815]">
             <div className="flex items-center space-x-1">
               <button
@@ -265,6 +254,7 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
 
           {/* Tab View Container */}
           <div className="flex-1 overflow-hidden relative">
+            {/* Stage notes — always interactive, never dimmed */}
             <div className={`h-full ${centerView === "notes" ? "block" : "hidden"}`}>
               <NotesEditor
                 currentStage={session.stage}
@@ -272,7 +262,8 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
                 onSaveNotes={onSaveNotes}
               />
             </div>
-            <div className={`h-full ${centerView === "code" ? "block" : "hidden"}`}>
+            {/* Code editor — dimmed when paused */}
+            <div className={`h-full relative ${centerView === "code" ? "block" : "hidden"}`}>
               <CodeEditor
                 initialCode={session.code}
                 language={session.language || "python"}
@@ -281,13 +272,18 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
                 isRunning={isRunningCode}
                 rateLimitSecondsLeft={rateLimitSecondsLeft}
               />
+              {session.status === "paused" && (
+                <div className="absolute inset-0 bg-[#12110F]/75 flex items-center justify-center">
+                  <p className="text-[13px] text-[#A59E91] font-mono">Paused</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
         {/* Right Pane: Interviewer Dialogue (28%) */}
         <div
-          className={`w-full md:w-[28%] md:min-w-[280px] h-full overflow-hidden bg-[#1A1815] border border-[#332E28] rounded-[10px] flex flex-col ${
+          className={`w-full md:w-[28%] md:min-w-[280px] h-full overflow-hidden bg-[#1A1815] border border-[#332E28] rounded-[10px] flex flex-col relative ${
             mobileTab === "dialogue" ? "flex" : "hidden md:flex"
           }`}
         >
@@ -297,6 +293,21 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
             onSendMessage={onSendMessage}
             isSending={isSendingMessage}
           />
+          {/* Paused overlay — covers dialogue, shows resume */}
+          {session.status === "paused" && (
+            <div className="absolute inset-0 rounded-[10px] bg-[#12110F]/85 flex flex-col items-center justify-center space-y-4">
+              <span className="font-serif text-[28px] text-[#ECE6DA]">Interview paused</span>
+              <p className="text-[13px] text-[#A59E91] font-mono">
+                Timer stopped at {formattedTime}
+              </p>
+              <button
+                onClick={onResume}
+                className="px-5 py-2 rounded-[4px] bg-[#F5B83D] text-[#12110F] font-medium text-[13px] hover:bg-[#F5B83D]/90 transition-colors"
+              >
+                Resume interview
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
