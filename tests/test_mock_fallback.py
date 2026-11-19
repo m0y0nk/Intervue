@@ -115,3 +115,16 @@ def test_serialized_session_includes_mock_fallback_info():
     assert "Failed to validate" in data["mock_reason"]
     assert data["requested_problem_summary"] == "LeetCode #15"
     db.close()
+
+
+def test_auto_migration_adds_missing_columns():
+    """Verify that init_db auto-migrates missing columns on SQLite."""
+    from app.database.session import init_db
+    # Call init_db and ensure it executes smoothly
+    init_db()
+    with engine.connect() as conn:
+        res = conn.exec_driver_sql("PRAGMA table_info(sessions)").fetchall()
+        cols = {row[1] for row in res}
+        assert "is_mock" in cols
+        assert "mock_reason" in cols
+        assert "requested_problem_summary" in cols
