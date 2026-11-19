@@ -341,9 +341,16 @@ cd Intervue
 # 2. Configure environment
 cp .env.example .env
 
-# 3. Launch all services
+# 3. Build the sandboxed runner images (required once, before first run)
+./build-runners.sh
+
+# 4. Launch all services
 docker compose up --build
 ```
+
+> [!IMPORTANT]
+> **`build-runners.sh` must be run before `docker compose up`** (and again if you edit any file in `backend/app/execution/`).
+> The executor spawns sibling containers on the host Docker daemon using the custom `intervue-runner-{python,java,cpp}:latest` images. These images are never on Docker Hub — they must be built locally. Skipping this step causes all problem generation to fail with `pull access denied`.
 
 #### Service URLs
 
