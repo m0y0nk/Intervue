@@ -4,21 +4,23 @@ interface NotesEditorProps {
   currentStage: number;
   notes: Record<string, string>;
   onSaveNotes: (stage: number, content: string) => Promise<void> | void;
+  stageTimeBudgets?: Record<string, number>;
 }
 
 const STAGES = [
-  { id: 1, name: "Understanding" },
-  { id: 2, name: "Brute force" },
-  { id: 3, name: "Constraints" },
-  { id: 4, name: "Optimal" },
-  { id: 5, name: "Edge cases" },
-  { id: 6, name: "Coding" },
+  { id: 1, name: "Understanding", key: "understanding" },
+  { id: 2, name: "Brute force", key: "brute_force" },
+  { id: 3, name: "Constraints", key: "constraints" },
+  { id: 4, name: "Optimal", key: "optimal" },
+  { id: 5, name: "Edge cases", key: "edge_cases" },
+  { id: 6, name: "Coding", key: "coding" },
 ];
 
 export const NotesEditor: React.FC<NotesEditorProps> = ({
   currentStage,
   notes,
   onSaveNotes,
+  stageTimeBudgets,
 }) => {
   const [selectedStage, setSelectedStage] = useState<number>(currentStage);
   const [localNotes, setLocalNotes] = useState<Record<string, string>>(() => ({ ...notes }));
@@ -123,6 +125,7 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
             const isCurrentInterviewStage = s.id === currentStage;
             const isTabActive = s.id === selectedStage;
             const isPassed = s.id < currentStage;
+            const budgetMinutes = stageTimeBudgets?.[s.key];
 
             return (
               <button
@@ -136,6 +139,11 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
               >
                 <span className="opacity-60">{s.id}.</span>
                 <span>{s.name}</span>
+                {budgetMinutes && (
+                  <span className="text-[10px] text-[#A59E91]/80 font-mono ml-0.5">
+                    {budgetMinutes}m
+                  </span>
+                )}
                 {isCurrentInterviewStage && (
                   <span className="w-1.5 h-1.5 rounded-full bg-[#F5B83D]" title="Active interview stage" />
                 )}

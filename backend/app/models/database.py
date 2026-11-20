@@ -62,6 +62,7 @@ class SessionModel(Base):
     is_mock = Column(Boolean, default=False, nullable=False)
     mock_reason = Column(Text, nullable=True)
     requested_problem_summary = Column(Text, nullable=True)
+    stage_time_budgets = Column(Text, nullable=True)  # JSON string of stage -> minutes
     created_at = Column(DateTime, default=utcnow)
 
     problem = relationship("ProblemModel")

@@ -495,15 +495,18 @@ export const SetupPage: React.FC<SetupPageProps> = ({
                   Session Ticket
                 </div>
                 <div className="font-display text-28 text-[#ECE6DA] mt-0.5">
-                  20:00 Authoritative
+                  Dynamic Pace
+                </div>
+                <div className="text-[12px] text-[#A59E91] mt-0.5 font-mono">
+                  15–40m allocated by AI
                 </div>
               </div>
 
-              {/* Identity Motif: Preview of Stage Rail with 20:00 on it */}
+              {/* Identity Motif: Preview of Stage Rail with dynamic pace */}
               <div className="pt-2 pb-2">
                 <StageRail
                   currentStage={1}
-                  formattedTime="20:00"
+                  formattedTime="Auto"
                   progressRatio={0}
                   mode="preview"
                 />
@@ -548,7 +551,7 @@ export const SetupPage: React.FC<SetupPageProps> = ({
                 >
                   {isGenerating
                     ? statusMessage || "Preparing sandbox..."
-                    : "Start 20-minute interview"}
+                    : "Start interview"}
                 </button>
               </div>
 

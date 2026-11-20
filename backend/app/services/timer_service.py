@@ -4,8 +4,8 @@ from typing import Tuple
 from sqlalchemy.orm import Session
 from ..models.database import SessionModel, StageEventModel, utcnow
 
-TOTAL_INTERVIEW_MS = 1_200_000  # 20 minutes
-STAGE_6_FORCE_MS = 780_000      # 13 minutes into interview -> remaining <= 420_000 ms
+TOTAL_INTERVIEW_MS = 1_200_000  # Default 20 minutes fallback
+STAGE_6_FORCE_MS = 780_000      # 13 minutes default pre-coding limit
 
 STAGE_NAMES = {
     1: "Understanding",
@@ -19,9 +19,14 @@ STAGE_NAMES = {
 
 class TimerService:
     @staticmethod
+    def get_total_duration_ms(session: SessionModel) -> int:
+        return (session.duration or 1200) * 1000
+
+    @staticmethod
     def get_remaining_ms(session: SessionModel) -> int:
+        total_ms = TimerService.get_total_duration_ms(session)
         if session.status in ("ready", "generating"):
-            return TOTAL_INTERVIEW_MS
+            return total_ms
 
         if session.status in ("finished", "abandoned"):
             return 0
@@ -36,38 +41,51 @@ class TimerService:
             delta_ms = int((now - resumed_at).total_seconds() * 1000)
             accumulated += max(0, delta_ms)
 
-        remaining = TOTAL_INTERVIEW_MS - accumulated
-        return max(0, min(TOTAL_INTERVIEW_MS, remaining))
+        remaining = total_ms - accumulated
+        return max(0, min(total_ms, remaining))
 
     @staticmethod
     def sync_and_check_limits(db: Session, session: SessionModel) -> SessionModel:
         """
-        Synchronizes wall-clock timer and enforces hard rules:
-        1. Auto-advance to Coding (stage 6) at 13:00 (active >= 780,000ms / remaining <= 420,000ms).
-        2. Auto-terminate at 20:00 (remaining <= 0).
+        Synchronizes wall-clock timer and enforces dynamic rules:
+        1. Auto-advance to Coding (stage 6) when remaining time reaches the coding budget.
+        2. Auto-terminate at total duration (remaining <= 0).
         """
         if session.status != "running":
             return session
 
+        total_ms = TimerService.get_total_duration_ms(session)
         remaining = TimerService.get_remaining_ms(session)
 
-        # Rule: At 20:00, terminate
+        # Rule: When total time expires, terminate
         if remaining <= 0:
             session.status = "finished"
             session.finished_at = utcnow()
-            session.active_ms_accumulated = TOTAL_INTERVIEW_MS
+            session.active_ms_accumulated = total_ms
             db.commit()
             return session
 
-        # Rule: At 13:00 (remaining <= 420,000ms), force advance into Coding (Stage 6)
-        if remaining <= (TOTAL_INTERVIEW_MS - STAGE_6_FORCE_MS) and session.stage < 6:
+        # Rule: Force advance into Coding (Stage 6) when pre-coding budget expires
+        coding_ms = 420_000  # Default 7 mins (for 20 min interview)
+        if session.stage_time_budgets:
+            try:
+                budgets = json.loads(session.stage_time_budgets)
+                if isinstance(budgets, dict) and "coding" in budgets and budgets["coding"] > 0:
+                    coding_ms = int(budgets["coding"] * 60 * 1000)
+            except Exception:
+                pass
+        else:
+            # By default reserve at least 35% of total time for coding
+            coding_ms = max(300_000, int(total_ms * 0.35))
+
+        if remaining <= coding_ms and session.stage < 6:
             session.stage = 6
             # Record stage forced advance event
             event = StageEventModel(
                 session_id=session.id,
                 stage=6,
                 event_type="forced_advance",
-                active_ms=TOTAL_INTERVIEW_MS - remaining,
+                active_ms=total_ms - remaining,
             )
             db.add(event)
             db.commit()
@@ -148,8 +166,9 @@ class TimerService:
         next_stage = curr_stage + 1
         session.stage = next_stage
 
+        total_ms = TimerService.get_total_duration_ms(session)
         remaining = TimerService.get_remaining_ms(session)
-        active_ms = TOTAL_INTERVIEW_MS - remaining
+        active_ms = total_ms - remaining
 
         # Record stage transition event
         db.add(

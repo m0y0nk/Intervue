@@ -72,6 +72,8 @@ export interface ProblemPublic {
   checker: string;
   category?: string;
   difficulty?: string;
+  time_limit_minutes?: number;
+  stage_time_budgets?: Record<string, number>;
   is_mock?: boolean;
   mock_reason?: string;
 }
@@ -93,6 +95,7 @@ export interface SessionState {
   is_mock?: boolean;
   mock_reason?: string;
   requested_problem_summary?: string;
+  stage_time_budgets?: Record<string, number>;
 }
 
 export interface ChatMessage {

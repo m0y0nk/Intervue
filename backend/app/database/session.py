@@ -27,6 +27,8 @@ def init_db():
                         conn.exec_driver_sql("ALTER TABLE sessions ADD COLUMN mock_reason TEXT")
                     if "requested_problem_summary" not in existing_cols:
                         conn.exec_driver_sql("ALTER TABLE sessions ADD COLUMN requested_problem_summary TEXT")
+                    if "stage_time_budgets" not in existing_cols:
+                        conn.exec_driver_sql("ALTER TABLE sessions ADD COLUMN stage_time_budgets TEXT")
                     conn.commit()
         except Exception:
             pass

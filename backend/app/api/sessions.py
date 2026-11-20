@@ -98,6 +98,8 @@ def _build_public_problem(
             visible_tests=priv.visible_tests,
             starter_code=priv.starter_code,
             checker=priv.checker,
+            time_limit_minutes=priv.time_limit_minutes,
+            stage_time_budgets=priv.stage_time_budgets,
             is_mock=priv.is_mock,
             mock_reason=priv.mock_reason,
         )
@@ -114,6 +116,8 @@ def _build_public_problem(
         checker=priv.checker,
         category=priv.category,
         difficulty=priv.difficulty,
+        time_limit_minutes=priv.time_limit_minutes,
+        stage_time_budgets=priv.stage_time_budgets,
         is_mock=priv.is_mock,
         mock_reason=priv.mock_reason,
     )
@@ -159,6 +163,15 @@ def _serialize_session_state(db: Session, session: SessionModel) -> SessionState
     started_at_str = session.started_at.isoformat() if session.started_at else None
     resumed_at_str = session.last_resumed_at.isoformat() if session.last_resumed_at else None
 
+    budgets = {}
+    if session.stage_time_budgets:
+        try:
+            budgets = json.loads(session.stage_time_budgets)
+        except Exception:
+            pass
+    elif public_problem and hasattr(public_problem, "stage_time_budgets"):
+        budgets = public_problem.stage_time_budgets or {}
+
     return SessionState(
         id=session.id,
         status=session.status,
@@ -184,6 +197,7 @@ def _serialize_session_state(db: Session, session: SessionModel) -> SessionState
         is_mock=bool(session.is_mock or (public_problem and getattr(public_problem, "is_mock", False))),
         mock_reason=session.mock_reason or (getattr(public_problem, "mock_reason", None) if public_problem else None),
         requested_problem_summary=session.requested_problem_summary,
+        stage_time_budgets=budgets,
     )
 
 
@@ -231,6 +245,10 @@ async def _async_generate_and_attach_problem(
                 problem_priv = ProblemPrivate.model_validate(json.loads(problem_model.private_data))
                 session.problem_id = problem_model.id
                 session.status = "ready"
+                if problem_priv.time_limit_minutes:
+                    session.duration = problem_priv.time_limit_minutes * 60
+                if problem_priv.stage_time_budgets:
+                    session.stage_time_budgets = json.dumps(problem_priv.stage_time_budgets)
                 problem_priv.signature = reconcile_signature_with_tests(problem_priv.signature, problem_priv.visible_tests)
                 starter_templates = generate_starter_templates(problem_priv.signature, problem_priv.visible_tests)
                 starter_templates.update(problem_priv.starter_code or {})
@@ -255,6 +273,12 @@ async def _async_generate_and_attach_problem(
         if getattr(problem_priv, "is_mock", False):
             session.is_mock = True
             session.mock_reason = problem_priv.mock_reason or "Offline deterministic mock problem was loaded."
+
+        # Dynamically set session duration and stage budgets from LLM's evaluation
+        dur_mins = problem_priv.time_limit_minutes or 20
+        session.duration = dur_mins * 60
+        if problem_priv.stage_time_budgets:
+            session.stage_time_budgets = json.dumps(problem_priv.stage_time_budgets)
 
         # Ensure starter templates for all languages are present
         problem_priv.signature = reconcile_signature_with_tests(problem_priv.signature, problem_priv.visible_tests)
@@ -289,6 +313,11 @@ async def _async_generate_and_attach_problem(
             mock_priv = gemini_service._mock_response(f"{session.source} {session.category}", ProblemPrivate)
             mock_priv.is_mock = True
             mock_priv.mock_reason = f"Could not generate/validate requested problem ({e}). Loaded offline deterministic mock problem."
+
+            dur_mins = mock_priv.time_limit_minutes or 20
+            session.duration = dur_mins * 60
+            if mock_priv.stage_time_budgets:
+                session.stage_time_budgets = json.dumps(mock_priv.stage_time_budgets)
 
             mock_priv.signature = reconcile_signature_with_tests(mock_priv.signature, mock_priv.visible_tests)
             starter_templates = generate_starter_templates(mock_priv.signature, mock_priv.visible_tests)

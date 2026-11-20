@@ -482,6 +482,21 @@ class ProblemPublic(BaseModel):
     checker: str = Field(default="exact")  # exact | unordered | float_tolerance(eps)
     category: Optional[str] = None
     difficulty: Optional[str] = None
+    time_limit_minutes: int = Field(
+        default=20,
+        description="Total interview duration in minutes decided by LLM based on difficulty and setup",
+    )
+    stage_time_budgets: Dict[str, int] = Field(
+        default_factory=lambda: {
+            "understanding": 3,
+            "brute_force": 3,
+            "constraints": 2,
+            "optimal": 3,
+            "edge_cases": 2,
+            "coding": 7,
+        },
+        description="Stage time allocation in minutes decided by LLM (understanding, brute_force, constraints, optimal, edge_cases, coding)",
+    )
     is_mock: bool = Field(default=False)
     mock_reason: Optional[str] = None
 
@@ -494,6 +509,17 @@ class ProblemPublicBlind(BaseModel):
     visible_tests: List[TestCaseSchema] = Field(default_factory=list)
     starter_code: Dict[str, str] = Field(default_factory=dict)
     checker: str = Field(default="exact")
+    time_limit_minutes: int = Field(default=20)
+    stage_time_budgets: Dict[str, int] = Field(
+        default_factory=lambda: {
+            "understanding": 3,
+            "brute_force": 3,
+            "constraints": 2,
+            "optimal": 3,
+            "edge_cases": 2,
+            "coding": 7,
+        }
+    )
     is_mock: bool = Field(default=False)
     mock_reason: Optional[str] = None
 

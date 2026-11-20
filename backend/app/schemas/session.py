@@ -58,6 +58,7 @@ class SessionState(BaseModel):
     is_mock: bool = False
     mock_reason: Optional[str] = None
     requested_problem_summary: Optional[str] = None
+    stage_time_budgets: Dict[str, int] = Field(default_factory=dict)
 
 
 class NotesUpdateRequest(BaseModel):

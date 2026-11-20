@@ -95,7 +95,9 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
   const seconds = totalSeconds % 60;
   const formattedTime = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
   const isWarning2 = totalSeconds <= 120 && totalSeconds > 0;
-  const elapsedRatio = Math.max(0, Math.min(1, (20 * 60 * 1000 - displayMs) / (20 * 60 * 1000)));
+  const totalDurationMs = (session.config.duration || (session.problem?.time_limit_minutes ? session.problem.time_limit_minutes * 60 : 1200)) * 1000;
+  const elapsedRatio = Math.max(0, Math.min(1, (totalDurationMs - displayMs) / totalDurationMs));
+  const totalMinutes = Math.round(totalDurationMs / 60000);
 
   return (
     <div className="flex flex-col h-screen bg-[#12110F] text-[#ECE6DA] overflow-hidden font-sans select-none">
@@ -107,14 +109,14 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
               <h2 className="font-serif text-[28px] font-normal text-[#ECE6DA]">Problem verified & ready</h2>
               <p className="text-[13px] text-[#A59E91] leading-relaxed">
                 The problem statement and hidden tests have been validated in the isolated sandbox.
-                Your 20-minute timed session will start once you begin.
+                Your {totalMinutes}-minute timed session will start once you begin.
               </p>
             </div>
             <button
               onClick={onBegin}
               className="w-full py-2.5 rounded-[4px] bg-[#F5B83D] hover:bg-[#F5B83D]/90 text-[#12110F] font-medium text-[13px] transition-colors"
             >
-              Start 20-minute interview
+              Start {totalMinutes}-minute interview
             </button>
           </div>
         </div>
@@ -278,6 +280,7 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
                 currentStage={session.stage}
                 notes={session.notes}
                 onSaveNotes={onSaveNotes}
+                stageTimeBudgets={session.stage_time_budgets || session.problem?.stage_time_budgets}
               />
             </div>
             {/* Code editor — dimmed when paused */}

@@ -97,26 +97,46 @@ Do NOT output free-text hints or solutions.
         return round(max(0.0, min(10.0, raw)), 1)
 
     @staticmethod
-    def calculate_deterministic_time_score(stage_timings_seconds: Dict[str, float]) -> float:
+    def calculate_deterministic_time_score(
+        stage_timings_seconds: Dict[str, float],
+        total_duration_seconds: float = 1200.0,
+        coding_budget_seconds: Optional[float] = None,
+    ) -> float:
         """
-        Scores time management (0 to 10) against 20-min target windows:
-        Stage 1: 0-3m (180s), Stage 2: 3-6m (180s), Stage 3: 6-8m (120s),
-        Stage 4: 8-11m (180s), Stage 5: 11-13m (120s), Stage 6: 13-20m (420s).
+        Scores time management (0 to 10) against dynamic or standard interview windows.
+        Scales proportionally with total interview duration and coding time allocation.
         """
         score = 10.0
-        # If candidate spent > 15 minutes before coding (coding started with < 5 min remaining)
         pre_coding_total = sum(
             stage_timings_seconds.get(f"stage_{i}", 0) for i in range(1, 6)
         )
-        if pre_coding_total > 900:  # > 15 minutes
-            score -= 3.5
-        elif pre_coding_total > 780:  # > 13 minutes (hard cap)
-            score -= 1.5
 
-        # If any single pre-coding stage exceeded 6 minutes
-        for i in range(1, 6):
-            if stage_timings_seconds.get(f"stage_{i}", 0) > 360:
-                score -= 1.0
+        if total_duration_seconds == 1200.0 and (coding_budget_seconds is None or coding_budget_seconds == 420.0):
+            # Canonical 20-min interview thresholds
+            if pre_coding_total > 900:  # > 15 minutes
+                score -= 3.5
+            elif pre_coding_total > 780:  # > 13 minutes (hard cap)
+                score -= 1.5
+
+            for i in range(1, 6):
+                if stage_timings_seconds.get(f"stage_{i}", 0) > 360:
+                    score -= 1.0
+        else:
+            if coding_budget_seconds is None or coding_budget_seconds <= 0:
+                coding_budget_seconds = total_duration_seconds * 0.35
+
+            pre_coding_budget = total_duration_seconds - coding_budget_seconds
+            severe_limit = total_duration_seconds - (coding_budget_seconds * 0.4)
+
+            if pre_coding_total > severe_limit:
+                score -= 3.5
+            elif pre_coding_total > pre_coding_budget:
+                score -= 1.5
+
+            single_stage_limit = max(240.0, pre_coding_budget * 0.40)
+            for i in range(1, 6):
+                if stage_timings_seconds.get(f"stage_{i}", 0) > single_stage_limit:
+                    score -= 1.0
 
         return max(1.0, min(10.0, round(score, 1)))
 
@@ -219,7 +239,16 @@ Do NOT output free-text hints or solutions.
         coding_score = self.calculate_deterministic_coding_score(
             passed_tests, total_tests, failure_category
         )
-        time_score = self.calculate_deterministic_time_score(stage_timings)
+        total_sec = float(problem.time_limit_minutes * 60) if getattr(problem, "time_limit_minutes", None) else 1200.0
+        coding_sec = 420.0
+        if getattr(problem, "stage_time_budgets", None) and isinstance(problem.stage_time_budgets, dict):
+            coding_sec = float(problem.stage_time_budgets.get("coding", 7) * 60)
+
+        time_score = self.calculate_deterministic_time_score(
+            stage_timings,
+            total_duration_seconds=total_sec,
+            coding_budget_seconds=coding_sec,
+        )
 
         style = get_style_params(style_name)
 
@@ -317,12 +346,13 @@ Also explain the Idea-to-Code Gap: why did the implementation diverge (or align)
             evidence_quote="",
             rationale=f"Passed {passed_tests}/{total_tests} hidden test cases with failure mode: {failure_category or 'none'}.",
         )
+        time_window_label = "20-minute" if total_sec == 1200.0 else f"{int(total_sec / 60)}-minute"
         dim_scores_map["Time Management"] = DimensionScore(
             name="Time Management",
             score=time_score,
             is_deterministic=True,
             evidence_quote="",
-            rationale="Pacing scored against 20-minute stage target windows.",
+            rationale=f"Pacing scored against {time_window_label} stage target windows.",
         )
 
         # Order dimensions

@@ -131,6 +131,9 @@ Requirements:
 6. Hidden test cases (at least 4) covering edge cases.
 7. Rubric items aligned to the 6 interview stages.
 8. NEVER name the algorithm, data structure, or give away the solution approach.
+9. Time allocation: Critically evaluate the problem difficulty and complexity:
+   - `time_limit_minutes`: Total interview duration (Easy: 15-20 min, Medium: 20-25 min, Hard: 30-40 min).
+   - `stage_time_budgets`: Integer minutes for understanding, brute_force, constraints, optimal, edge_cases, coding (coding should receive 35-50% of total time).
 """
 
     # ------------------------------------------------------------------ #
@@ -148,7 +151,7 @@ Create a **business-framed** DSA interview problem where:
 - At least 3 concrete examples with business-meaningful variable names.
 - Category hint: {config.category} — choose a problem fitting this topic but frame it as a business problem.
 - Difficulty: {config.difficulty}
-- The statement must be solvable in 20 minutes, unambiguous, have a unique optimal solution.
+- The statement must be unambiguous with a unique optimal solution.
 - NEVER use algorithm names (e.g. "sliding window", "dynamic programming", "graph") in the statement.
 - NEVER name the data structure in the statement (e.g. "use a hash map").
 
@@ -159,6 +162,9 @@ Requirements:
 4. Python input generator `generate_inputs(n=10)` returning a list of small argument lists (lengths <= 15) for fast differential testing.
 5. Hidden test cases (at least 4).
 6. Rubric items aligned to the 6 interview stages.
+7. Time allocation: Critically evaluate the problem difficulty and business scenario reading complexity:
+   - `time_limit_minutes`: Total interview duration (Easy: 15-20 min, Medium: 20-25 min, Hard: 30-40 min).
+   - `stage_time_budgets`: Integer minutes for understanding, brute_force, constraints, optimal, edge_cases, coding (coding should receive 35-50% of total time).
 """
         return await self._generate_and_validate(prompt, config, "ai_business")
 
@@ -294,6 +300,9 @@ Your task:
 6. Generate Python input generator `generate_inputs(n=10)` returning small argument lists (lengths <= 15) for fast differential testing.
 7. Generate hidden test cases (at least 4 edge cases).
 8. Generate rubric items aligned to the 6 interview stages.
+9. Time allocation: Critically evaluate the problem difficulty and complexity:
+   - `time_limit_minutes`: Total interview duration (Easy: 15-20 min, Medium: 20-25 min, Hard: 30-40 min).
+   - `stage_time_budgets`: Integer minutes for understanding, brute_force, constraints, optimal, edge_cases, coding (coding should receive 35-50% of total time).
 
 CRITICAL RULES:
 - Function signature: function_name must be a valid identifier (e.g. twoSum or two_sum). Argument types and return_type must be canonical DSA types: int, long, double, bool, string, char, int[], int[][], string[], ListNode, TreeNode, or void. NEVER use "Object", "Any", or unspecific types.
@@ -351,6 +360,9 @@ Your task:
 4. Generate `generate_inputs(n)` respecting the constraints.
 5. Generate hidden test cases (at least 4 edge cases).
 6. Generate rubric items.
+7. Time allocation: Critically evaluate the problem difficulty and complexity:
+   - `time_limit_minutes`: Total interview duration (Easy: 15-20 min, Medium: 20-25 min, Hard: 30-40 min).
+   - `stage_time_budgets`: Integer minutes for understanding, brute_force, constraints, optimal, edge_cases, coding (coding should receive 35-50% of total time).
 
 If the problem is not solvable as a pure function (e.g. requires I/O, external state,
 design questions without clear input/output), set `title = "UNSUPPORTED"` and
@@ -420,6 +432,34 @@ design questions without clear input/output), set `title = "UNSUPPORTED"` and
                 candidate.category = config.category if config.category and config.category != "mixed" else "arrays_hashing"
             if not candidate.difficulty:
                 candidate.difficulty = config.difficulty or "medium"
+
+            # Reconcile dynamic time limit and stage budgets decided by LLM
+            if not candidate.time_limit_minutes or candidate.time_limit_minutes <= 0:
+                diff = (candidate.difficulty or "medium").lower()
+                if diff == "easy":
+                    candidate.time_limit_minutes = 15
+                elif diff == "hard":
+                    candidate.time_limit_minutes = 30
+                else:
+                    candidate.time_limit_minutes = 20
+
+            if not candidate.stage_time_budgets or sum(candidate.stage_time_budgets.values()) != candidate.time_limit_minutes:
+                total = candidate.time_limit_minutes
+                coding_m = max(6, int(total * 0.40))
+                pre_m = total - coding_m
+                u_m = max(2, int(pre_m * 0.25))
+                bf_m = max(2, int(pre_m * 0.25))
+                c_m = max(1, int(pre_m * 0.15))
+                opt_m = max(2, int(pre_m * 0.25))
+                ec_m = max(1, pre_m - (u_m + bf_m + c_m + opt_m))
+                candidate.stage_time_budgets = {
+                    "understanding": u_m,
+                    "brute_force": bf_m,
+                    "constraints": c_m,
+                    "optimal": opt_m,
+                    "edge_cases": ec_m,
+                    "coding": coding_m,
+                }
 
             passed, msg = await problem_validator.validate_problem(candidate)
             if passed:

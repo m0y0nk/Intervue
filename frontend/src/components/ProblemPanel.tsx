@@ -19,12 +19,19 @@ export const ProblemPanel: React.FC<ProblemPanelProps> = ({ problem, stage }) =>
     <div className="h-full flex flex-col overflow-y-auto pr-3 space-y-6 text-[#ECE6DA] text-15 leading-relaxed">
       {/* Title & Plain Metadata */}
       <div className="space-y-1.5 pb-4 border-b border-[#332E28]">
-        {/* Difficulty and Topic as plain muted text (hidden in Blind Mock) */}
-        {(problem.difficulty || problem.category) && (
-          <div className="text-13 text-[#A59E91] font-mono space-x-2">
+        {/* Difficulty, Topic, and LLM-allocated Time Budget */}
+        {(problem.difficulty || problem.category || problem.time_limit_minutes) && (
+          <div className="text-13 text-[#A59E91] font-mono space-x-2 flex items-center flex-wrap">
             {problem.difficulty && <span className="capitalize">{problem.difficulty}</span>}
             {problem.difficulty && problem.category && <span>·</span>}
             {problem.category && <span className="capitalize">{problem.category.replace("_", " ")}</span>}
+            {(problem.difficulty || problem.category) && problem.time_limit_minutes && <span>·</span>}
+            {problem.time_limit_minutes && (
+              <span className="text-[#F5B83D]/90">
+                {problem.time_limit_minutes}m target
+                {problem.stage_time_budgets?.coding ? ` (${problem.stage_time_budgets.coding}m coding)` : ""}
+              </span>
+            )}
           </div>
         )}
         <h2 className="font-display text-28 text-[#ECE6DA] tracking-tight leading-snug">
